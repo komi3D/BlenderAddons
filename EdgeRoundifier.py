@@ -418,6 +418,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
     def roundify(self, edge, parameters, bm, mesh):
+        
+
         # assumption Z=0 for all vertices
 
         # BECAUSE ALL DATA FROM MESH IS IN LOCAL COORDINATES
@@ -428,6 +430,18 @@ class EdgeRoundifier(bpy.types.Operator):
 
         # OriginalVertices stores Local Coordinates, V1, V2 stores translated coordinates
         OriginalVertices, V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfoAfterTranslation(edge, objectLocation)
+
+        #Check If It is possible to spin selected verts on this plane if not exit roundifier
+        if(parameters["plane"] == XY):
+            if (V1[0] == V2[0] and V1[1] == V2[1]):
+                return
+        elif(parameters["plane"] == YZ):
+            if (V1[1] == V2[1] and V1[2] == V2[2]):
+                return
+        elif(parameters["plane"] == XZ):
+            if (V1[0] == V2[0] and V1[2] == V2[2]):
+                return
+            
 
         debugPrint("PLANE: ", parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(edgeCenter, edgeVector, parameters["plane"])
@@ -505,23 +519,11 @@ class EdgeRoundifier(bpy.types.Operator):
         if parameters["flip"] == True:
             angle = -angle
             
-#         bpy.ops.mesh.spin(
-#             steps = steps,
-#             dupli = False,
-#             angle = angle,
-#             center = chosenSpinCenter,
-#             axis = spinAxis)
-        
         (v0org, v1org) = self.getVerticesFromEdge(edge)
 
         #Duplicate initial vertex
         v0 = bm.verts.new(v0org.co)
 
-        edge.select = False
-        bpy.ops.object.mode_set(mode = 'OBJECT')
-        bm.to_mesh(mesh)
-        bpy.ops.object.mode_set(mode = 'EDIT')
-        
         print("==BEFORE NEW VERT==")
         for v in bm.verts:
             print (str(v.index) + "]" + str(v.co))
@@ -530,16 +532,11 @@ class EdgeRoundifier(bpy.types.Operator):
                                    angle = angle, steps = steps, use_duplicate = False)
              
         #TODO: Take Ref Object into account! special case for 180 deg                    
-        print(result['geom_last'])
-        print(result['geom_last'][0].index)
-        print(result['geom_last'][0].co)
+
         lastVertIndex = result['geom_last'][0].index
         
-        print(v0.co)
-#        if (result['geom_last'][0].co - v1org.co).length < SPIN_END_THRESHOLD:
-#            print ("arc OK")
-        if (False):
-            pass
+        if (result['geom_last'][0].co - v1org.co).length < SPIN_END_THRESHOLD:
+            print ("arc OK")
         else:
             print ("NEW ARC NEEDED")
             
@@ -547,26 +544,16 @@ class EdgeRoundifier(bpy.types.Operator):
             #bpy.ops.mesh.select_all(action = "DESELECT")
             arcfirstVertexIndex = lastVertIndex - steps + 1
             rng = range(arcfirstVertexIndex, lastVertIndex + 1)
-            print (rng)
-            verticesForDeletion = [v0]
-            #verticesForDeletion = []
+
+            verticesForDeletion = []
             for i in rng:
                 vi = bm.verts[i]
                 vi.select = True
                 print(vi)
                 verticesForDeletion.append(vi)
-                #bmesh.ops.delete(bm, geom=[vi], context=1)
                 
-            print("====")
-            for v in bm.verts:
-                print (v.index)
-
-            print(verticesForDeletion)
             bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
             
-            print("====")
-            for v in bm.verts:
-                print (v.index)
             bmesh.update_edit_mesh(mesh, True) 
             bpy.ops.object.mode_set(mode = 'OBJECT')
             bpy.ops.object.mode_set(mode = 'EDIT')
@@ -576,10 +563,10 @@ class EdgeRoundifier(bpy.types.Operator):
                 print (v.index)
                 
                 
-#            result2 = bmesh.ops.spin(bm, geom= [v0], cent = chosenSpinCenter, axis = spinAxis,\
-#                                   angle = -angle, steps = steps, use_duplicate = False)
-#            if (result2['geom_last'][0].co - v0org.co).length < SPIN_END_THRESHOLD:
-#                print ("SECOND arc OK")
+            result2 = bmesh.ops.spin(bm, geom= [v0], cent = chosenSpinCenter, axis = spinAxis,\
+                                   angle = -angle, steps = steps, use_duplicate = False)
+            if (result2['geom_last'][0].co - v0org.co).length < SPIN_END_THRESHOLD:
+                print ("SECOND arc OK")
         
         bpy.ops.object.mode_set(mode = 'OBJECT')
         bm.to_mesh(mesh)
@@ -667,85 +654,6 @@ class EdgeRoundifier(bpy.types.Operator):
             return 1
         else:
             return 0
-
-#     def getProperVertexIndex(self, chosenSpinCenter, V1, V2, refObjectLocation, plane):
-#         # TODO: I DON"T like this code :) there has to be a simpler way to check that!
-#         Sxyz = chosenSpinCenter
-#         Exyz = self.calc.getCenterBetween2VertsXYZ(V1, V2)
-#         S = None
-#         E = None
-#         if plane == XY:
-#             S = [Sxyz[0], Sxyz[1]]
-#             E = [Exyz[0], Exyz[1]]
-#         if plane == YZ:
-#             S = [Sxyz[1], Sxyz[2]]
-#             E = [Exyz[1], Exyz[2]]
-#         if plane == XZ:
-#             S = [Sxyz[0], Sxyz[2]]
-#             E = [Exyz[0], Exyz[2]]
-#             
-#         # edge is like y=x, S below edge OR         # edge is like y=-x, S below edge
-#         if (S[0] > E[0] and S[1] < E[1]) or (S[0] < E[0] and S[1] < E[1]):
-#             if V1[0] < E[0]:
-#                 return 0  # V1
-#             if V2[0] < E[0]:
-#                 return 1  # V2
-#         # edge is like y=x, S above edge  OR         # edge is like y=-x, S above edge
-#         if (S[0] < E[0] and S[1] > E[1]) or (S[0] > E[0] and S[1] > E[1]):
-#             if V1[0] > E[0]:
-#                 return 0  # V1
-#             if V2[0] > E[0]:
-#                 return 1  # V2
-# 
-# 
-#         # horizontal edge
-#         if S[0] == E[0] and S[1] < E[1]:
-#             if V1[0] < E[0]:
-#                 return 0  # V1
-#             if V2[0] < E[0]:
-#                 return 1  # V2
-#         if S[0] == E[0] and S[1] > E[1]:
-#             if V1[0] > E[0]:
-#                 return 0  # V1
-#             if V2[0] > E[0]:
-#                 return 1  # V1
-#         # spin center in the center of horizontal edge
-#         if S[0] == E[0] and S[1] == E[1] and V1[1] == V2[1]:
-#             if (refObjectLocation[1] < E[1]) and (V1[0] < E[0]):
-#                 return 0  # V1
-#             if (refObjectLocation[1] < E[1]) and (V2[0] < E[0]):
-#                 return 1  # V1
-#             if (refObjectLocation[1] > E[1]) and (V1[0] > E[0]):
-#                 return 0  # V1
-#             if (refObjectLocation[1] > E[1]) and (V2[0] > E[0]):
-#                 return 1  # V1
-# 
-#         # vertical edge
-#         if S[0] < E[0] and S[1] == E[1]:
-#             if V1[1] > E[1]:
-#                 return 0  # V1
-#             if V2[1] > E[1]:
-#                 return 1  # V2
-#         if S[0] > E[0] and S[1] == E[1]:
-#             if V1[1] < E[1]:
-#                 return 0  # V1
-#             if V2[1] < E[1]:
-#                 return 1  # V1
-# 
-#         # spin center in the center of vertical edge
-#         if S[0] == E[0] and S[1] == E[1] and V1[0] == V2[0]:
-# 
-#             if (refObjectLocation[0] < E[0]) and (V1[1] > E[1]):
-#                 return 0  # V1
-#             if (refObjectLocation[0] < E[0]) and (V2[1] > E[1]):
-#                 return 1  # V1
-#             if (refObjectLocation[0] > E[0]) and (V1[1] < E[1]):
-#                 return 0  # V1
-#             if (refObjectLocation[0] > E[0]) and (V2[1] < E[1]):
-#                 return 1  # V1
-# 
-#         return 0
-
 
     def getSpinCenterClosestToRefCenter(self, objLocation, roots, flip):
         root0Distance = self.calc.getEdgeLength(objLocation, roots[0])
