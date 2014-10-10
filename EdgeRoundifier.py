@@ -419,9 +419,6 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def roundify(self, edge, parameters, bm, mesh):
         
-
-        # assumption Z=0 for all vertices
-
         # BECAUSE ALL DATA FROM MESH IS IN LOCAL COORDINATES
         # AND SPIN OPERATOR WORKS ON GLOBAL COORDINATES
         # WE FIRST NEED TO TRANSLATE ALL INPUT DATA BY VECTOR EQUAL TO ORIGIN POSITION AND THEN PERFORM CALCULATIONS
@@ -494,14 +491,9 @@ class EdgeRoundifier(bpy.types.Operator):
             angle = 2 * halfAngle[0]  # in radians
             self.a = math.degrees(angle)  # in degrees
 
-        # spinAxis = (0, 0, 1)  # Z axis by default
         spinAxis = self.getSpinAxis(parameters["plane"])
 
-        #vertIndex = self.getProperVertexIndex(chosenSpinCenter, V1, V2, refObjectLocation, parameters["plane"])
-
         if(parameters["invertAngle"]):
-            #vertIndex = self.getTheOtherIndex(vertIndex)
-            #angle = 2 * math.pi - angle
             angle = -2 * math.pi + angle
 
         if(parameters["fullCircles"]):
@@ -524,10 +516,6 @@ class EdgeRoundifier(bpy.types.Operator):
         #Duplicate initial vertex
         v0 = bm.verts.new(v0org.co)
 
-        print("==BEFORE NEW VERT==")
-        for v in bm.verts:
-            print (str(v.index) + "]" + str(v.co))
-                
         result = bmesh.ops.spin(bm, geom= [v0], cent = chosenSpinCenter, axis = spinAxis,\
                                    angle = angle, steps = steps, use_duplicate = False)
              
@@ -535,13 +523,18 @@ class EdgeRoundifier(bpy.types.Operator):
 
         lastVertIndex = result['geom_last'][0].index
         
-        if (result['geom_last'][0].co - v1org.co).length < SPIN_END_THRESHOLD:
-            print ("arc OK")
-        else:
-            print ("NEW ARC NEEDED")
+        arcfirstVertexIndex = lastVertIndex - steps + 1
+        rng = range(arcfirstVertexIndex, lastVertIndex + 1)
+        midVertexIndex = lastVertIndex - round(steps/2)
+        print(midVertexIndex) 
+        midVertexDistance = self.calc.getEdgeLength(refObjectLocation, bm.verts[midVertexIndex].co)
+        midEdgeDistance = self.calc.getEdgeLength(refObjectLocation, edgeCenter)
+        # TODO - do something with 3D Cursor!!!!
+        #TODO CLean UP!!!
+        if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
+#             \            or midVertexDistance < midEdgeDistance:
+
             
-            #bpy.ops.object.mode_set(mode = 'OBJECT')
-            #bpy.ops.mesh.select_all(action = "DESELECT")
             arcfirstVertexIndex = lastVertIndex - steps + 1
             rng = range(arcfirstVertexIndex, lastVertIndex + 1)
 
@@ -549,7 +542,6 @@ class EdgeRoundifier(bpy.types.Operator):
             for i in rng:
                 vi = bm.verts[i]
                 vi.select = True
-                print(vi)
                 verticesForDeletion.append(vi)
                 
             bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
@@ -558,11 +550,6 @@ class EdgeRoundifier(bpy.types.Operator):
             bpy.ops.object.mode_set(mode = 'OBJECT')
             bpy.ops.object.mode_set(mode = 'EDIT')
 
-            print("==after delete and toggle mode==")
-            for v in bm.verts:
-                print (v.index)
-                
-                
             result2 = bmesh.ops.spin(bm, geom= [v0], cent = chosenSpinCenter, axis = spinAxis,\
                                    angle = -angle, steps = steps, use_duplicate = False)
             if (result2['geom_last'][0].co - v0org.co).length < SPIN_END_THRESHOLD:
