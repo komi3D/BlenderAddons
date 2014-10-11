@@ -417,11 +417,15 @@ class EdgeRoundifier(bpy.types.Operator):
         return OriginalVertices, V1Translated, V2Translated, edgeVector, edgeLength, edgeCenter
 
 
+
+
+
     def roundify(self, edge, parameters, bm, mesh):
         
         # BECAUSE ALL DATA FROM MESH IS IN LOCAL COORDINATES
         # AND SPIN OPERATOR WORKS ON GLOBAL COORDINATES
         # WE FIRST NEED TO TRANSLATE ALL INPUT DATA BY VECTOR EQUAL TO ORIGIN POSITION AND THEN PERFORM CALCULATIONS
+        # At least that is my understanding :) <komi3D>
 
         objectLocation = bpy.context.active_object.location  # Origin Location
 
@@ -465,7 +469,6 @@ class EdgeRoundifier(bpy.types.Operator):
             else:
                 roots = self.calc.getLineCircleIntersections(lineAB, circleMidPointOnPlane, radius)
             if roots == None:
-                self.report({'WARNING'}, "Edge Roundifier: No centers were found. Increase radius!")
                 debugPrint("No centers were found. Change radius to higher value")
                 return None
             roots = self.addMissingCoordinate(roots, V1, parameters["plane"])  # adds X, Y or Z coordinate
@@ -493,9 +496,11 @@ class EdgeRoundifier(bpy.types.Operator):
 
         spinAxis = self.getSpinAxis(parameters["plane"])
 
+        print("angle >>>> " + str(angle))
         if(parameters["invertAngle"]):
             angle = -2 * math.pi + angle
 
+        print("invert angle >>>> " + str(angle))
         if(parameters["fullCircles"]):
             angle = 2 * math.pi
 
@@ -510,7 +515,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if parameters["flip"] == True:
             angle = -angle
-            
+        print("angle flip >>>> " + str(angle))
+        print("SPIN CENTER >>>> " + str(chosenSpinCenter))
         (v0org, v1org) = self.getVerticesFromEdge(edge)
 
         #Duplicate initial vertex
@@ -519,51 +525,54 @@ class EdgeRoundifier(bpy.types.Operator):
         result = bmesh.ops.spin(bm, geom= [v0], cent = chosenSpinCenter, axis = spinAxis,\
                                    angle = angle, steps = steps, use_duplicate = False)
              
-        #TODO: Take Ref Object into account! special case for 180 deg                    
-
         lastVertIndex = result['geom_last'][0].index
         
         arcfirstVertexIndex = lastVertIndex - steps + 1
         rng = range(arcfirstVertexIndex, lastVertIndex + 1)
-        midVertexIndex = lastVertIndex - round(steps/2)
-        print(midVertexIndex) 
-        midVertexDistance = self.calc.getEdgeLength(refObjectLocation, bm.verts[midVertexIndex].co)
-        midEdgeDistance = self.calc.getEdgeLength(refObjectLocation, edgeCenter)
-        # TODO - do something with 3D Cursor!!!!
+        
         #TODO CLean UP!!!
-        if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-#             \            or midVertexDistance < midEdgeDistance:
-
+        
+        if (angle == math.pi or angle == -math.pi):
+            print("SECOND SPIN >>>> " + str(angle))
+            midVertexIndex = lastVertIndex - round(steps/2)
+            print(midVertexIndex) 
+            midVertexDistance = self.calc.getEdgeLength(refObjectLocation, bm.verts[midVertexIndex].co)
+            midEdgeDistance = self.calc.getEdgeLength(refObjectLocation, edgeCenter)
             
-            arcfirstVertexIndex = lastVertIndex - steps + 1
-            rng = range(arcfirstVertexIndex, lastVertIndex + 1)
-
-            verticesForDeletion = []
-            for i in rng:
-                vi = bm.verts[i]
-                vi.select = True
-                verticesForDeletion.append(vi)
-                
-            bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
+            if (parameters["invertAngle"]) or (parameters["flip"]):
+                if (midVertexDistance > midEdgeDistance):
+                    print("SECOND SPIN PERFORMED >>>> " + str(angle))
+                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, rng)    
+            else:
+                if (midVertexDistance < midEdgeDistance):
+                    print("SECOND SPIN PERFORMED >>>> " + str(angle))
+                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, rng)    
+        else:
+            if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
+                self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, rng)
             
-            bmesh.update_edit_mesh(mesh, True) 
-            bpy.ops.object.mode_set(mode = 'OBJECT')
-            bpy.ops.object.mode_set(mode = 'EDIT')
-
-            result2 = bmesh.ops.spin(bm, geom= [v0], cent = chosenSpinCenter, axis = spinAxis,\
-                                   angle = -angle, steps = steps, use_duplicate = False)
-            if (result2['geom_last'][0].co - v0org.co).length < SPIN_END_THRESHOLD:
-                print ("SECOND arc OK")
         
         bpy.ops.object.mode_set(mode = 'OBJECT')
         bm.to_mesh(mesh)
         bpy.ops.object.mode_set(mode = 'EDIT')
-        
-
-
-
 
 ##########################################
+
+    def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, lastSpinVertIndices):
+        verticesForDeletion = []
+        for i in lastSpinVertIndices:
+            vi = bm.verts[i]
+            vi.select = True
+            verticesForDeletion.append(vi)
+        
+        bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
+        bmesh.update_edit_mesh(mesh, True)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='EDIT')
+        result2 = bmesh.ops.spin(bm, geom=[v0], cent=chosenSpinCenter, axis=spinAxis, 
+            angle=-angle, steps=steps, use_duplicate=False)
+
+
 
     def getOffsetVectorForTangency(self, edgeCenter, chosenSpinCenter, radius, invertAngle):
         if invertAngle == False:
