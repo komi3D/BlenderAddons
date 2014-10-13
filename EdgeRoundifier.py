@@ -504,7 +504,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         steps = parameters["segments"]
 
-        if parameters["flip"] == True:
+        if parameters["fullCircles"] == False and parameters["flip"] == True:
             angle = -angle
 
         ############ DRAWING SPIN ####################
@@ -521,9 +521,11 @@ class EdgeRoundifier(bpy.types.Operator):
 
         print ("LEN after=")
         print(len(bm.verts))
+        
+        # it seems there is something wrong with last index of this spin...
+        # I need to calculate the last index manually here...
         vertsLength = len(bm.verts)
         lastVertIndex = bm.verts[vertsLength - 1].index
-        
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
 
         print("result1:")
@@ -550,7 +552,7 @@ class EdgeRoundifier(bpy.types.Operator):
             else:
                 if (midVertexDistance < midEdgeDistance):
                     self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
-        else:
+        elif (angle != 2*math.pi): #to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
                 self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
 
@@ -598,8 +600,6 @@ class EdgeRoundifier(bpy.types.Operator):
         result2 = bmesh.ops.spin(bm, geom = [v0prim], cent = chosenSpinCenter, axis = spinAxis,
             angle = -angle, steps = steps, use_duplicate = False)
         # it seems there is something wrong with last index of this spin...
-        # example verts before: 1,2,3... 22, verts after 1,2,3...22,23,24,25,26,>>23<< -this last index is WRONG -
-        # and is messing up the script!
         # I need to calculate the last index manually here...
         print ("LEN after=")
         print(len(bm.verts))
