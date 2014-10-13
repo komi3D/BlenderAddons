@@ -41,7 +41,7 @@ XY = "XY"
 XZ = "XZ"
 YZ = "YZ"
 SPIN_END_THRESHOLD = 0.001
-    
+
 # variable controlling all print functions
 debug = False
 
@@ -394,37 +394,23 @@ class EdgeRoundifier(bpy.types.Operator):
         v1, v2 = vertices
         V1 = [v1.co.x, v1.co.y, v1.co.z]
         V2 = [v2.co.x, v2.co.y, v2.co.z]
-        #V1Translated = self.translateByVector(V1, objectLocation)
-        #V2Translated = self.translateByVector(V2, objectLocation)
-        V1Translated = V1
-        V2Translated = V2
         edgeVector = self.calc.getVectorBetween2VertsXYZ(V1, V2)
         edgeLength = self.calc.getVectorLength(edgeVector)
-        #edgeCenter = self.calc.getCenterBetween2VertsXYZ(V1Translated, V2Translated)
         edgeCenter = self.calc.getCenterBetween2VertsXYZ(V1, V2)
         debugPrint("Edge info======================================")
         debugPrint("V1 info==============")
         debugPrint(V1)
         debugPrint("V2 info==============")
         debugPrint(V2)
-#         debugPrint("V1 TRANS info==============")
-#         debugPrint(V1Translated)
-#         debugPrint("V2 TRANS info==============")
-#         debugPrint(V2Translated)
         debugPrint("Edge Length==============")
         debugPrint(edgeLength)
         debugPrint("Edge Center==============")
         debugPrint(edgeCenter)
         debugPrint("Edge info======================================")
-        #return V1Translated, V2Translated, edgeVector, edgeLength, edgeCenter
         return V1, V2, edgeVector, edgeLength, edgeCenter
 
-
-
-
-
     def roundify(self, edge, parameters, bm, mesh):
-        
+
         # BECAUSE ALL DATA FROM MESH IS IN LOCAL COORDINATES
         # AND SPIN OPERATOR WORKS ON GLOBAL COORDINATES
         # WE FIRST NEED TO TRANSLATE ALL INPUT DATA BY VECTOR EQUAL TO ORIGIN POSITION AND THEN PERFORM CALCULATIONS
@@ -433,7 +419,7 @@ class EdgeRoundifier(bpy.types.Operator):
         # V1 V2 stores Local Coordinates
         V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
 
-        #Check If It is possible to spin selected verts on this plane if not exit roundifier
+        # Check If It is possible to spin selected verts on this plane if not exit roundifier
         if(parameters["plane"] == XY):
             if (V1[0] == V2[0] and V1[1] == V2[1]):
                 return
@@ -443,7 +429,7 @@ class EdgeRoundifier(bpy.types.Operator):
         elif(parameters["plane"] == XZ):
             if (V1[0] == V2[0] and V1[2] == V2[2]):
                 return
-            
+
 
         debugPrint("PLANE: ", parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(edgeCenter, edgeVector, parameters["plane"])
@@ -482,16 +468,16 @@ class EdgeRoundifier(bpy.types.Operator):
 
         refObjectLocation = None
         objectLocation = bpy.context.active_object.location  # Origin Location
-        
+
         if parameters["refObject"] == "ORG":
             refObjectLocation = [0, 0, 0]
         else:
-            refObjectLocation = bpy.context.scene.cursor_location - objectLocation
+            refObjectLocation = bpy.context.scene.cursor_location
 #             print("3D cursor Translated:")
 #             print(bpy.context.scene.cursor_location)
 #             print(objectLocation
 #             print(refObjectLocation)
-        
+
         print(parameters["refObject"])
         chosenSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
 
@@ -521,47 +507,55 @@ class EdgeRoundifier(bpy.types.Operator):
         if parameters["flip"] == True:
             angle = -angle
 
-        ############ DRAWING SPIN ####################            
+        ############ DRAWING SPIN ####################
         (v0org, v1org) = self.getVerticesFromEdge(edge)
 
-        #Duplicate initial vertex
+        # Duplicate initial vertex
         v0 = bm.verts.new(v0org.co)
-        
+
         print("chosenSpinCenter= ")
         print(chosenSpinCenter)
-        
-        result = bmesh.ops.spin(bm, geom= [v0], cent = chosenSpinCenter, axis = spinAxis,\
+
+        result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
-             
-        lastVertIndex, lastSpinVertIndices = self.getLastSpinVertIndices(steps, result)
+
+        print ("LEN after=")
+        print(len(bm.verts))
+        vertsLength = len(bm.verts)
+        lastVertIndex = bm.verts[vertsLength - 1].index
         
+        lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
+
+        print("result1:")
+        print(lastVertIndex)
+        print(lastSpinVertIndices)
         #TODO CLean UP!!!
-        
+
         if (angle == math.pi or angle == -math.pi):
 
-            midVertexIndex = lastVertIndex - round(steps/2)
+            midVertexIndex = lastVertIndex - round(steps / 2)
             midVert = bm.verts[midVertexIndex].co
-          
+
             midVertexDistance = self.calc.getEdgeLength(refObjectLocation, midVert)
             midEdgeDistance = self.calc.getEdgeLength(refObjectLocation, edgeCenter)
-            
+
             print("midVertexDistance: ")
             print(midVertexDistance)
             print("midEdgeDistance: ")
             print(midEdgeDistance)
-            
-            if (parameters["invertAngle"]) or (parameters["flip"]): 
+
+            if (parameters["invertAngle"]) or (parameters["flip"]):
                 if (midVertexDistance > midEdgeDistance):
-                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)    
+                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
             else:
                 if (midVertexDistance < midEdgeDistance):
-                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)    
+                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
         else:
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
                 self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
-            
+
         self.sel.refreshMesh(bm, mesh)
-        
+
 ##########################################
 
 
@@ -570,31 +564,80 @@ class EdgeRoundifier(bpy.types.Operator):
         for i in lastSpinVertIndices:
             vi = bm.verts[i]
             vi.select = True
+            print(str(i) + ") " + str(vi))
             verticesForDeletion.append(vi)
-        
-        bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
+
+        bmesh.ops.delete(bm, geom = verticesForDeletion, context = 1)
         bmesh.update_edit_mesh(mesh, True)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        bpy.ops.object.mode_set(mode = 'EDIT')
 
 
     def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
+        print("== begin alternate spin ==")
+        for v in bm.verts:
+            print (v.index)
+        print("== indices for deletion ==")
+        print(lastSpinVertIndices)
+        for i in lastSpinVertIndices:
+            print (i)
+
         self.deleteSpinVertices(bm, mesh, lastSpinVertIndices)
-        v0prim = bm.verts.new(v0.co)
-        result2 = bmesh.ops.spin(bm, geom=[v0prim], cent=chosenSpinCenter, axis=spinAxis, 
-            angle=-angle, steps=steps, use_duplicate=False)
-        #second spin also does not hit the v1org
+#        v0prim = bm.verts.new(v0.co)
+        v0prim = v0
+        print("== v0prim index: ==")
+        print(v0prim.index)
+
+        print("== BEFORE 2nd spin performed==")
+        for v in bm.verts:
+            print (v.index)
+
+        print ("LEN before=")
+        print(len(bm.verts))
+
+        result2 = bmesh.ops.spin(bm, geom = [v0prim], cent = chosenSpinCenter, axis = spinAxis,
+            angle = -angle, steps = steps, use_duplicate = False)
+        # it seems there is something wrong with last index of this spin...
+        # example verts before: 1,2,3... 22, verts after 1,2,3...22,23,24,25,26,>>23<< -this last index is WRONG -
+        # and is messing up the script!
+        # I need to calculate the last index manually here...
+        print ("LEN after=")
+        print(len(bm.verts))
+        vertsLength = len(bm.verts)
+        lastVertIndex2 = bm.verts[vertsLength - 1].index
+        print("== 2nd spin performed==")
+        for v in bm.verts:
+            print (v.index)
+
+        print("last:")
+        print(result2['geom_last'][0].index)
+
+
+# second spin also does not hit the v1org
         if (result2['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-            lastVertIndex2, lastSpinVertIndices2 = self.getLastSpinVertIndices(steps, result2)
+            lastSpinVertIndices2 = self.getLastSpinVertIndices(steps, lastVertIndex2)
+            print("== lastVertIndex2: ==")
+            print(result2['geom_last'][0].index)
+            print(lastVertIndex2)
+
+            print("== 2nd spin ==")
+            for v in bm.verts:
+                print (v.index)
+            print("== indices for deletion ==")
+            print(lastSpinVertIndices2)
+            for i in lastSpinVertIndices2:
+                print (i)
+
+            print("result2:")
             print(lastSpinVertIndices2)
             self.deleteSpinVertices(bm, mesh, lastSpinVertIndices2)
-            
+            self.deleteSpinVertices(bm, mesh, range(v0.index, v0.index + 1))
 
-    def getLastSpinVertIndices(self, steps, result):
-        lastVertIndex = result['geom_last'][0].index
+
+    def getLastSpinVertIndices(self, steps, lastVertIndex):
         arcfirstVertexIndex = lastVertIndex - steps + 1
         lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
-        return lastVertIndex, lastSpinVertIndices
+        return lastSpinVertIndices
 
 
     def getOffsetVectorForTangency(self, edgeCenter, chosenSpinCenter, radius, invertAngle):
@@ -625,7 +668,7 @@ class EdgeRoundifier(bpy.types.Operator):
         r1 = self.translateByVector(roots[0], objectLocation)
         r2 = self.translateByVector(roots[1], objectLocation)
         return [r1, r2]
-    
+
     def getOppositeVector(self, originalVector):
         x, y, z = originalVector
         return [-x, -y, -z]
@@ -670,24 +713,21 @@ class EdgeRoundifier(bpy.types.Operator):
         return radius, angle
 
     def getSpinCenterClosestToRefCenter(self, objLocation, roots, flip):
-        #translatedRoots = self.translateRoots(roots, objLocation)
-        #root0Distance = self.calc.getEdgeLength(objLocation, translatedRoots[0])
-        #root1Distance = self.calc.getEdgeLength(objLocation, translatedRoots[1])
         root0Distance = self.calc.getEdgeLength(objLocation, roots[0])
         root1Distance = self.calc.getEdgeLength(objLocation, roots[1])
-        print("------------------------------")
-        print(objLocation)
-        print("roots[0]: ")
-        print(roots[0])
-        #print(translatedRoots[0])
-        print(root0Distance)
-        print("roots[1]: ")
-        print(roots[1])
-        #print(translatedRoots[1])
-        print(root1Distance)
-        
+#         print("------------------------------")
+#         print(objLocation)
+#         print("roots[0]: ")
+#         print(roots[0])
+#         #print(translatedRoots[0])
+#         print(root0Distance)
+#         print("roots[1]: ")
+#         print(roots[1])
+#         #print(translatedRoots[1])
+#         print(root1Distance)
+
         chosenId = 0
-        rejectedId = 1 
+        rejectedId = 1
         if (root0Distance > root1Distance):
             chosenId = 1
             rejectedId = 0
@@ -774,7 +814,7 @@ class EdgeRoundifier(bpy.types.Operator):
     def poll(cls, context):
         return (context.scene.objects.active.type == 'MESH') and (context.scene.objects.active.mode == 'EDIT')
 
-    
+
 
 def draw_item(self, context):
     self.layout.operator_context = 'INVOKE_DEFAULT'
