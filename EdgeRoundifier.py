@@ -17,6 +17,7 @@
 #
 # ***** END GPL LICENCE BLOCK *****
 
+
 bl_info = {
     "name": "Edge Roundifier",
     "category": "Mesh",
