@@ -329,7 +329,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        layout.label('Radius < edge_length/2 causes arcs to disappear.')
+        layout.label('Note: possible radius >= edge_length/2.')
         row = layout.row(align = False)
         row.label('Mode:')
         row.prop(self, 'modeEnum', expand = True, text = "a")
@@ -357,7 +357,7 @@ class EdgeRoundifier(bpy.types.Operator):
         layout.label('Reference Location:')
         layout.prop(self, 'referenceLocation', expand = True, text = "a")
 
-        layout.label('Working Plane:')
+        layout.label('Working Plane (LOCAL coordinates):')
         layout.prop(self, 'planeEnum', expand = True, text = "a")
 
 
@@ -409,6 +409,14 @@ class EdgeRoundifier(bpy.types.Operator):
         debugPrint("Edge info======================================")
         return V1, V2, edgeVector, edgeLength, edgeCenter
 
+    def roundify(self, edge, parameters, bm, mesh):
+
+        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
+        if self.skipThisEdge(V1, V2, parameters["plane"]):
+            return
+
+        roundifyParams = self.calculateRoundifyParams(edge, parameters, bm, mesh)
+        self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
 
     def skipThisEdge(self, V1, V2, plane):
         # Check If It is possible to spin selected verts on this plane if not exit roundifier
@@ -431,13 +439,18 @@ class EdgeRoundifier(bpy.types.Operator):
 
         # V1 V2 stores Local Coordinates
         V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
-        
+
         debugPrint("PLANE: ", parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(edgeCenter, edgeVector, parameters["plane"])
         debugPrint("Line Coefficients:", lineAB)
         circleMidPoint = V1
         circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters["plane"])
         radius = parameters["radius"]
+        
+        if radius < edgeLength/2:
+            radius = edgeLength/2
+            parameters["radius"] = edgeLength/2 
+        
         angle = 0
         if (parameters["modeEnum"] == 'Angle'):
             if (parameters["angleEnum"] != 'Other'):
@@ -503,19 +516,16 @@ class EdgeRoundifier(bpy.types.Operator):
         if parameters["fullCircles"] == False and parameters["flip"] == True:
             angle = -angle
         X = [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation]
-        print (X)    
+        print (X)
         return X
 
 
-    def roundify(self, edge, parameters, bm, mesh):
 
-        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
-        if self.skipThisEdge(V1, V2, parameters["plane"]):
-            return
 
-        [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation] = self.calculateRoundifyParams(edge, parameters, bm, mesh)
 
-        ############ DRAWING SPIN ####################
+    def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
+        [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+
         (v0org, v1org) = self.getVerticesFromEdge(edge)
 
         # Duplicate initial vertex
@@ -529,7 +539,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         print ("LEN after=")
         print(len(bm.verts))
-        
+
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
         vertsLength = len(bm.verts)
@@ -560,7 +570,7 @@ class EdgeRoundifier(bpy.types.Operator):
             else:
                 if (midVertexDistance < midEdgeDistance):
                     self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
-        elif (angle != 2*math.pi): #to allow full circles :)
+        elif (angle != 2 * math.pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
                 self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
 
