@@ -409,8 +409,21 @@ class EdgeRoundifier(bpy.types.Operator):
         debugPrint("Edge info======================================")
         return V1, V2, edgeVector, edgeLength, edgeCenter
 
-    def roundify(self, edge, parameters, bm, mesh):
 
+    def skipThisEdge(self, V1, V2, plane):
+        # Check If It is possible to spin selected verts on this plane if not exit roundifier
+        if(plane == XY):
+            if (V1[0] == V2[0] and V1[1] == V2[1]):
+                return True
+        elif(plane == YZ):
+            if (V1[1] == V2[1] and V1[2] == V2[2]):
+                return True
+        elif(plane == XZ):
+            if (V1[0] == V2[0] and V1[2] == V2[2]):
+                return True
+        return False
+
+    def calculateRoundifyParams(self, edge, parameters, bm, mesh):
         # BECAUSE ALL DATA FROM MESH IS IN LOCAL COORDINATES
         # AND SPIN OPERATOR WORKS ON GLOBAL COORDINATES
         # WE FIRST NEED TO TRANSLATE ALL INPUT DATA BY VECTOR EQUAL TO ORIGIN POSITION AND THEN PERFORM CALCULATIONS
@@ -418,29 +431,14 @@ class EdgeRoundifier(bpy.types.Operator):
 
         # V1 V2 stores Local Coordinates
         V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
-
-        # Check If It is possible to spin selected verts on this plane if not exit roundifier
-        if(parameters["plane"] == XY):
-            if (V1[0] == V2[0] and V1[1] == V2[1]):
-                return
-        elif(parameters["plane"] == YZ):
-            if (V1[1] == V2[1] and V1[2] == V2[2]):
-                return
-        elif(parameters["plane"] == XZ):
-            if (V1[0] == V2[0] and V1[2] == V2[2]):
-                return
-
-
+        
         debugPrint("PLANE: ", parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(edgeCenter, edgeVector, parameters["plane"])
         debugPrint("Line Coefficients:", lineAB)
-
         circleMidPoint = V1
         circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters["plane"])
-        # V1[0], V1[1])  # only for Z=0 plane
         radius = parameters["radius"]
         angle = 0
-
         if (parameters["modeEnum"] == 'Angle'):
             if (parameters["angleEnum"] != 'Other'):
                 radius, angle = self.CalculateRadiusAndAngleForAnglePresets(parameters["angleEnum"], radius, angle, edgeLength)
@@ -462,7 +460,6 @@ class EdgeRoundifier(bpy.types.Operator):
 
         else:
             roots = [edgeCenter, edgeCenter]
-
         debugPrint("roots=")
         debugPrint(roots)
 
@@ -480,7 +477,6 @@ class EdgeRoundifier(bpy.types.Operator):
 
         print(parameters["refObject"])
         chosenSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
-
 
         if (parameters["modeEnum"] == "Radius"):
             halfAngle = self.calc.getAngle(edgeCenter, chosenSpinCenter, circleMidPoint)
@@ -506,6 +502,18 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if parameters["fullCircles"] == False and parameters["flip"] == True:
             angle = -angle
+        X = [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation]
+        print (X)    
+        return X
+
+
+    def roundify(self, edge, parameters, bm, mesh):
+
+        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
+        if self.skipThisEdge(V1, V2, parameters["plane"]):
+            return
+
+        [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation] = self.calculateRoundifyParams(edge, parameters, bm, mesh)
 
         ############ DRAWING SPIN ####################
         (v0org, v1org) = self.getVerticesFromEdge(edge)
