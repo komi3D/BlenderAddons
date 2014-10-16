@@ -21,7 +21,7 @@ bl_info = {
     "name": "Edge Roundifier",
     "category": "Mesh",
     'author': 'Piotr Komisarczyk (komi3D), PKHG',
-    'version': (0, 0, 2),
+    'version': (0, 0, 3),
     'blender': (2, 7, 1),
     'location': 'SPACE > Edge Roundifier or CTRL-E > Edge Roundifier',
     'description': 'Mesh editing script allowing edge rounding',
@@ -33,7 +33,7 @@ bl_info = {
 import bmesh
 import bpy
 import bpy.props
-import math
+from math import sqrt, acos, pi, radians, degrees, sin, acos
 from mathutils import Vector
 
 # CONSTANTS
@@ -81,12 +81,12 @@ class CalculationHelper:
             elif delta < 0:
                 return None
             else :
-                x1 = (-b - math.sqrt(delta)) / (2 * a)
-                x2 = (-b + math.sqrt(delta)) / (2 * a)
+                x1 = (-b - sqrt(delta)) / (2 * a)
+                x2 = (-b + sqrt(delta)) / (2 * a)
                 return (x1, x2)
 
     def getDelta(self, coef):
-        delta = math.pow(coef[1], 2) - 4 * coef[0] * coef[2]
+        delta = (coef[1] ** 2) - 4 * coef[0] * coef[2]
         return delta
 
     def getCoefficientsForLineThrough2Points(self, point1, point2, plane):
@@ -104,8 +104,8 @@ class CalculationHelper:
             y2 = z2
 
         # Further calculations the same as for XY plane
-        xabs = math.fabs(x2 - x1)
-        yabs = math.fabs(y2 - y1)
+        xabs = abs(x2 - x1)
+        yabs = abs(y2 - y1)
         debugPrint("XABS = ", xabs)
         debugPrint("YABS = ", yabs)
         if xabs <= 0.0001:
@@ -124,9 +124,9 @@ class CalculationHelper:
         # f * x**2 + g * x + h = 0 - quadratic equation
         A, B = lineAB
         a, b = circleMidPoint
-        f = 1 + math.pow(A, 2)
+        f = 1 + (A ** 2)
         g = -2 * a + 2 * A * B - 2 * A * b
-        h = math.pow(B, 2) - 2 * b * B - math.pow(radius, 2) + math.pow(a, 2) + math.pow(b, 2)
+        h = (B ** 2) - 2 * b * B - (radius ** 2) + (a ** 2) + (b ** 2)
         coef = [f, g, h]
         roots = self.getQuadraticRoots(coef)
         if roots != None:
@@ -152,7 +152,7 @@ class CalculationHelper:
         a, b = circleMidPoint
         f = 1
         g = -2 * b
-        h = math.pow(a, 2) + math.pow(b, 2) + math.pow(xValue, 2) - 2 * a * xValue - math.pow(radius, 2)
+        h = (a ** 2) + (b ** 2) + (xValue ** 2) - 2 * a * xValue - (radius ** 2)
         coef = [f, g, h]
         roots = self.getQuadraticRoots(coef)
         if roots != None:
@@ -168,7 +168,7 @@ class CalculationHelper:
         x1, y1, z1 = point1
         x2, y2, z2 = point2
         # TODO assupmtion Z=0
-        length = math.sqrt(math.pow(x2 - x1, 2) + math.pow(y2 - y1, 2) + math.pow(z2 - z1, 2))
+        length = sqrt( (x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2 )
         return length
 
     # point1 is the point near 90 deg angle
@@ -178,8 +178,8 @@ class CalculationHelper:
         cos = distance1 / distance2
         if abs(cos) > 1:  # prevents Domain Error
             cos = round(cos)
-        alpha = math.acos(cos)
-        degAlpha = (alpha / (math.pi * 2)) * 360
+        alpha = acos(cos)
+        degAlpha = (alpha / (pi * 2)) * 360
         return (alpha, degAlpha)
 
     def getVectorBetween2VertsXYZ(self, vert1, vert2):
@@ -461,7 +461,7 @@ class EdgeRoundifier(bpy.types.Operator):
         debugPrint("RADIUS = ", radius)
         debugPrint("ANGLE = ", angle)
         roots = None
-        if angle != math.pi:  # mode other than 180
+        if angle != pi:  # mode other than 180
             if lineAB == None:
                 roots = self.calc.getLineCircleIntersectionsWhenXPerpendicular(edgeCenter, circleMidPointOnPlane, radius, parameters["plane"])
             else:
@@ -483,26 +483,22 @@ class EdgeRoundifier(bpy.types.Operator):
             refObjectLocation = [0, 0, 0]
         else:
             refObjectLocation = bpy.context.scene.cursor_location
-#             print("3D cursor Translated:")
-#             print(bpy.context.scene.cursor_location)
-#             print(objectLocation
-#             print(refObjectLocation)
 
-        print(parameters["refObject"])
+        debugPrint(parameters["refObject"])
         chosenSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
 
         if (parameters["modeEnum"] == "Radius"):
             halfAngle = self.calc.getAngle(edgeCenter, chosenSpinCenter, circleMidPoint)
             angle = 2 * halfAngle[0]  # in radians
-            self.a = math.degrees(angle)  # in degrees
+            self.a = degrees(angle)  # in degrees
 
         spinAxis = self.getSpinAxis(parameters["plane"])
 
         if(parameters["invertAngle"]):
-            angle = -2 * math.pi + angle
+            angle = -2 * pi + angle
 
         if(parameters["fullCircles"]):
-            angle = 2 * math.pi
+            angle = 2 * pi
 
         # FUTURE TODO OFFSET
 #        if parameters["offset"]:
@@ -516,7 +512,7 @@ class EdgeRoundifier(bpy.types.Operator):
         if parameters["fullCircles"] == False and parameters["flip"] == True:
             angle = -angle
         X = [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation]
-        print (X)
+        debugPrint (X)
         return X
 
 
@@ -531,14 +527,14 @@ class EdgeRoundifier(bpy.types.Operator):
         # Duplicate initial vertex
         v0 = bm.verts.new(v0org.co)
 
-        print("chosenSpinCenter= ")
-        print(chosenSpinCenter)
+        debugPrint("chosenSpinCenter= ")
+        debugPrint(chosenSpinCenter)
 
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
 
-        print ("LEN after=")
-        print(len(bm.verts))
+        debugPrint ("LEN after=")
+        debugPrint(len(bm.verts))
 
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
@@ -546,12 +542,12 @@ class EdgeRoundifier(bpy.types.Operator):
         lastVertIndex = bm.verts[vertsLength - 1].index
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
 
-        print("result1:")
-        print(lastVertIndex)
-        print(lastSpinVertIndices)
+        debugPrint("result1:")
+        debugPrint(lastVertIndex)
+        debugPrint(lastSpinVertIndices)
         #TODO CLean UP!!!
 
-        if (angle == math.pi or angle == -math.pi):
+        if (angle == pi or angle == -pi):
 
             midVertexIndex = lastVertIndex - round(steps / 2)
             midVert = bm.verts[midVertexIndex].co
@@ -559,10 +555,10 @@ class EdgeRoundifier(bpy.types.Operator):
             midVertexDistance = self.calc.getEdgeLength(refObjectLocation, midVert)
             midEdgeDistance = self.calc.getEdgeLength(refObjectLocation, edgeCenter)
 
-            print("midVertexDistance: ")
-            print(midVertexDistance)
-            print("midEdgeDistance: ")
-            print(midEdgeDistance)
+            debugPrint("midVertexDistance: ")
+            debugPrint(midVertexDistance)
+            debugPrint("midEdgeDistance: ")
+            debugPrint(midEdgeDistance)
 
             if (parameters["invertAngle"]) or (parameters["flip"]):
                 if (midVertexDistance > midEdgeDistance):
@@ -570,7 +566,7 @@ class EdgeRoundifier(bpy.types.Operator):
             else:
                 if (midVertexDistance < midEdgeDistance):
                     self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
-        elif (angle != 2 * math.pi):  # to allow full circles :)
+        elif (angle != 2 * pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
                 self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
 
@@ -584,7 +580,7 @@ class EdgeRoundifier(bpy.types.Operator):
         for i in lastSpinVertIndices:
             vi = bm.verts[i]
             vi.select = True
-            print(str(i) + ") " + str(vi))
+            debugPrint(str(i) + ") " + str(vi))
             verticesForDeletion.append(vi)
 
         bmesh.ops.delete(bm, geom = verticesForDeletion, context = 1)
@@ -594,60 +590,60 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
     def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
-        print("== begin alternate spin ==")
+        debugPrint("== begin alternate spin ==")
         for v in bm.verts:
-            print (v.index)
-        print("== indices for deletion ==")
-        print(lastSpinVertIndices)
+            debugPrint (v.index)
+        debugPrint("== indices for deletion ==")
+        debugPrint(lastSpinVertIndices)
         for i in lastSpinVertIndices:
-            print (i)
+            debugPrint (i)
 
         self.deleteSpinVertices(bm, mesh, lastSpinVertIndices)
 #        v0prim = bm.verts.new(v0.co)
         v0prim = v0
-        print("== v0prim index: ==")
-        print(v0prim.index)
+        debugPrint("== v0prim index: ==")
+        debugPrint(v0prim.index)
 
-        print("== BEFORE 2nd spin performed==")
+        debugPrint("== BEFORE 2nd spin performed==")
         for v in bm.verts:
-            print (v.index)
+            debugPrint (v.index)
 
-        print ("LEN before=")
-        print(len(bm.verts))
+        debugPrint ("LEN before=")
+        debugPrint(len(bm.verts))
 
         result2 = bmesh.ops.spin(bm, geom = [v0prim], cent = chosenSpinCenter, axis = spinAxis,
             angle = -angle, steps = steps, use_duplicate = False)
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
-        print ("LEN after=")
-        print(len(bm.verts))
+        debugPrint ("LEN after=")
+        debugPrint(len(bm.verts))
         vertsLength = len(bm.verts)
         lastVertIndex2 = bm.verts[vertsLength - 1].index
-        print("== 2nd spin performed==")
+        debugPrint("== 2nd spin performed==")
         for v in bm.verts:
-            print (v.index)
+            debugPrint (v.index)
 
-        print("last:")
-        print(result2['geom_last'][0].index)
+        debugPrint("last:")
+        debugPrint(result2['geom_last'][0].index)
 
 
 # second spin also does not hit the v1org
         if (result2['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
             lastSpinVertIndices2 = self.getLastSpinVertIndices(steps, lastVertIndex2)
-            print("== lastVertIndex2: ==")
-            print(result2['geom_last'][0].index)
-            print(lastVertIndex2)
+            debugPrint("== lastVertIndex2: ==")
+            debugPrint(result2['geom_last'][0].index)
+            debugPrint(lastVertIndex2)
 
-            print("== 2nd spin ==")
+            debugPrint("== 2nd spin ==")
             for v in bm.verts:
-                print (v.index)
-            print("== indices for deletion ==")
-            print(lastSpinVertIndices2)
+                debugPrint (v.index)
+            debugPrint("== indices for deletion ==")
+            debugPrint(lastSpinVertIndices2)
             for i in lastSpinVertIndices2:
-                print (i)
+                debugPrint (i)
 
-            print("result2:")
-            print(lastSpinVertIndices2)
+            debugPrint("result2:")
+            debugPrint(lastSpinVertIndices2)
             self.deleteSpinVertices(bm, mesh, lastSpinVertIndices2)
             self.deleteSpinVertices(bm, mesh, range(v0.index, v0.index + 1))
 
@@ -699,8 +695,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def CalculateRadiusAndAngleForOtherAngle(self, edgeLength):
         degAngle = self.a
-        angle = math.radians(degAngle)
-        self.r = radius = edgeLength / (2 * math.sin(angle / 2))
+        angle = radians(degAngle)
+        self.r = radius = edgeLength / (2 * sin(angle / 2))
         return radius, angle
 
     def CalculateRadiusAndAngleForAnglePresets(self, mode, initR, initA, edgeLength):
@@ -709,23 +705,23 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if mode == "180":
             radius = edgeLength / 2
-            angle = math.pi
+            angle = pi
         elif mode == "120":
-            radius = edgeLength / 3 * math.sqrt(3)
-            angle = 2 * math.pi / 3
+            radius = edgeLength / 3 * sqrt(3)
+            angle = 2 * pi / 3
         elif mode == "90":
-            radius = edgeLength / 2 * math.sqrt(2)
-            angle = math.pi / 2
+            radius = edgeLength / 2 * sqrt(2)
+            angle = pi / 2
         elif mode == "60":
             radius = edgeLength
-            angle = math.pi / 3
+            angle = pi / 3
         elif mode == "45":
-            radius = edgeLength / (2 * math.sin(math.pi / 8))
-            angle = math.pi / 4
+            radius = edgeLength / (2 * sin(pi / 8))
+            angle = pi / 4
         elif mode == "30":
-            radius = edgeLength / (2 * math.sin(math.pi / 12))
-            angle = math.pi / 6
-        self.a = math.degrees(angle)
+            radius = edgeLength / (2 * sin(pi / 12))
+            angle = pi / 6
+        self.a = degrees(angle)
         self.r = radius
         debugPrint ("mode output, radius = ", radius, "angle = ", angle)
         return radius, angle
@@ -733,16 +729,16 @@ class EdgeRoundifier(bpy.types.Operator):
     def getSpinCenterClosestToRefCenter(self, objLocation, roots, flip):
         root0Distance = self.calc.getEdgeLength(objLocation, roots[0])
         root1Distance = self.calc.getEdgeLength(objLocation, roots[1])
-#         print("------------------------------")
-#         print(objLocation)
-#         print("roots[0]: ")
-#         print(roots[0])
-#         #print(translatedRoots[0])
-#         print(root0Distance)
-#         print("roots[1]: ")
-#         print(roots[1])
-#         #print(translatedRoots[1])
-#         print(root1Distance)
+#         debugPrint("------------------------------")
+#         debugPrint(objLocation)
+#         debugPrint("roots[0]: ")
+#         debugPrint(roots[0])
+#         #debugPrint(translatedRoots[0])
+#         debugPrint(root0Distance)
+#         debugPrint("roots[1]: ")
+#         debugPrint(roots[1])
+#         #debugPrint(translatedRoots[1])
+#         debugPrint(root1Distance)
 
         chosenId = 0
         rejectedId = 1
@@ -786,12 +782,12 @@ class EdgeRoundifier(bpy.types.Operator):
         self.deselectEdges(bmnew)
         for selectedEdge in edges:
             for e in bmnew.edges:
-                if math.fabs(e.verts[0].co.x - selectedEdge.verts[0].co.x) <= self.threshold \
-                and math.fabs(e.verts[0].co.y - selectedEdge.verts[0].co.y) <= self.threshold \
-                and math.fabs(e.verts[0].co.y - selectedEdge.verts[0].co.y) <= self.threshold \
-                and math.fabs(e.verts[1].co.x - selectedEdge.verts[1].co.x) <= self.threshold \
-                and math.fabs(e.verts[1].co.y - selectedEdge.verts[1].co.y) <= self.threshold \
-                and math.fabs(e.verts[1].co.y - selectedEdge.verts[1].co.y) <= self.threshold:
+                if abs(e.verts[0].co.x - selectedEdge.verts[0].co.x) <= self.threshold \
+                and abs(e.verts[0].co.y - selectedEdge.verts[0].co.y) <= self.threshold \
+                and abs(e.verts[0].co.y - selectedEdge.verts[0].co.y) <= self.threshold \
+                and abs(e.verts[1].co.x - selectedEdge.verts[1].co.x) <= self.threshold \
+                and abs(e.verts[1].co.y - selectedEdge.verts[1].co.y) <= self.threshold \
+                and abs(e.verts[1].co.y - selectedEdge.verts[1].co.y) <= self.threshold:
                     e.select_set(True)
 
         bpy.ops.object.mode_set(mode = 'OBJECT')
