@@ -260,7 +260,9 @@ class EdgeRoundifier(bpy.types.Operator):
     flip = bpy.props.BoolProperty(name = 'flip', default = False)
     invertAngle = bpy.props.BoolProperty(name = 'invertAngle', default = False)
     fullCircles = bpy.props.BoolProperty(name = 'fullCircles', default = False)
+    bothSides = bpy.props.BoolProperty(name = 'bothSides', default = False)
     removeDoubles = bpy.props.BoolProperty(name = 'removeDoubles', default = False)
+    removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
     # FUTURE TODO: OFFSET
     # offset = bpy.props.BoolProperty(name = 'offset', default = False)
 
@@ -319,10 +321,13 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["flip"] = self.flip
         parameters["fullCircles"] = self.fullCircles
         parameters["invertAngle"] = self.invertAngle
+        parameters["bothSides"] = self.bothSides
         parameters["angleEnum"] = self.angleEnum
         parameters["modeEnum"] = self.modeEnum
         parameters["refObject"] = self.referenceLocation
         parameters["removeDoubles"] = self.removeDoubles
+        parameters["removeEdges"] = self.removeEdges
+        
         # FUTURE TODO OFFSET
         # parameters["offset"] = self.offset
         return parameters
@@ -350,7 +355,11 @@ class EdgeRoundifier(bpy.types.Operator):
         row.prop(self, 'invertAngle')
         row = layout.row(align = False)
         row.prop(self, 'fullCircles')
+        row.prop(self, 'bothSides' )
+        row = layout.row(align = False)
         row.prop(self, 'removeDoubles')
+        row.prop(self, 'removeEdges')
+
         # FUTURE TODO OFFSET
         # row.prop(self, 'offset')
 
@@ -379,6 +388,12 @@ class EdgeRoundifier(bpy.types.Operator):
             self.selectEdgesAfterRoundifier(context, edges)
         else:
             debugPrint("No edges selected!")
+        
+        if parameters["removeEdges"]:
+            bmesh.ops.delete(bm, geom = edges, context = 2)
+            bpy.ops.object.mode_set(mode = 'OBJECT')
+            bm.to_mesh(mesh)
+            bpy.ops.object.mode_set(mode = 'EDIT')
 
         bm.free()
         return {'FINISHED'}
@@ -417,6 +432,12 @@ class EdgeRoundifier(bpy.types.Operator):
 
         roundifyParams = self.calculateRoundifyParams(edge, parameters, bm, mesh)
         self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+        if parameters["bothSides"]:
+            lastSpinCenter = roundifyParams[0]
+            roundifyParams[0] = roundifyParams[1]
+            roundifyParams[1] = lastSpinCenter
+            print (roundifyParams)
+            self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
 
     def skipThisEdge(self, V1, V2, plane):
         # Check If It is possible to spin selected verts on this plane if not exit roundifier
@@ -485,7 +506,7 @@ class EdgeRoundifier(bpy.types.Operator):
             refObjectLocation = bpy.context.scene.cursor_location
 
         debugPrint(parameters["refObject"])
-        chosenSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
+        chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
 
         if (parameters["modeEnum"] == "Radius"):
             halfAngle = self.calc.getAngle(edgeCenter, chosenSpinCenter, circleMidPoint)
@@ -511,7 +532,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if parameters["fullCircles"] == False and parameters["flip"] == True:
             angle = -angle
-        X = [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation]
+        X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
         debugPrint (X)
         return X
 
@@ -520,7 +541,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
     def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
-        [chosenSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
 
         (v0org, v1org) = self.getVerticesFromEdge(edge)
 
@@ -563,9 +584,13 @@ class EdgeRoundifier(bpy.types.Operator):
             if (parameters["invertAngle"]) or (parameters["flip"]):
                 if (midVertexDistance > midEdgeDistance):
                     self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+            elif (parameters["bothSides"]):
+                self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
+                self.alternateSpin(bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
             else:
                 if (midVertexDistance < midEdgeDistance):
                     self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+        
         elif (angle != 2 * pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
                 self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
@@ -746,9 +771,9 @@ class EdgeRoundifier(bpy.types.Operator):
             chosenId = 1
             rejectedId = 0
         if flip == True:
-            return roots[rejectedId]
+            return roots[rejectedId], roots[chosenId] 
         else:
-            return roots[chosenId]
+            return roots[chosenId], roots[rejectedId]
 
     def addMissingCoordinate(self, roots, startVertex, plane):
         if roots != None:
