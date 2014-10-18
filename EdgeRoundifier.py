@@ -436,7 +436,6 @@ class EdgeRoundifier(bpy.types.Operator):
             lastSpinCenter = roundifyParams[0]
             roundifyParams[0] = roundifyParams[1]
             roundifyParams[1] = lastSpinCenter
-            print (roundifyParams)
             self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
 
     def skipThisEdge(self, V1, V2, plane):
