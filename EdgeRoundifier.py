@@ -22,7 +22,6 @@
 #19 oct PKHG added debugPrintNew + globals to steer the debug
 #19 oct PKHG: more use of Vectors done
 
-#PKHG>PROBLEM??? Piotr check please! (search for this text)
 #PKHG>INFO if all points in 3D space are Vectors, a lot of Vector(xxx) could become xxx
 # without an extra Vector 
 
@@ -103,7 +102,7 @@ class CalculationHelper:
             return NaN
         else:
             a, b, c = coef
-            delta = b ** 2 - 4 * a * c #old self.getDelta(coef)
+            delta = b ** 2 - 4 * a * c
             if delta == 0:
                 x = -b / (2 * a)
                 return (x, x)
@@ -113,11 +112,6 @@ class CalculationHelper:
                 x1 = (-b - sqrt(delta)) / (2 * a)
                 x2 = (-b + sqrt(delta)) / (2 * a)
                 return (x1, x2)
-    """PKHF>INFO meaningless this extra def ;-(
-    def getDelta(self, coef):
-        delta = (coef[1] ** 2) - 4 * coef[0] * coef[2]
-        return delta
-    """
 
     def getCoefficientsForLineThrough2Points(self, point1, point2, plane):
         x1, y1, z1 = point1
@@ -208,37 +202,13 @@ class CalculationHelper:
 
     # point1 is the point near 90 deg angle
     def getAngle(self, point1, point2, point3):
-        distance1 = (Vector(point1) - Vector(point2)).length #old self.getEdgeLength(point1, point2)
-        distance2 = (Vector(point2) - Vector(point3)).length #old self.getEdgeLength(point2, point3)
+        distance1 = (Vector(point1) - Vector(point2)).length
+        distance2 = (Vector(point2) - Vector(point3)).length
         cos = distance1 / distance2
         if abs(cos) > 1:  # prevents Domain Error
             cos = round(cos)
         alpha = acos(cos)
-        #degAlpha = degrees(alpha) #old (alpha / (pi * 2)) * 360
         return (alpha, degrees(alpha))
-
-    #PKHG>replaced by direct difference
-    """
-    def getVectorBetween2VertsXYZ(self, vert1, vert2):
-        output = [vert2[0] - vert1[0], vert2[1] - vert1[1], vert2[2] - vert1[2]]
-        return output
-
-    def getVectorLength(self, vector):
-        return Vector(vector).length #old self.getEdgeLength([0, 0, 0], vector)
-
-    def getNormalizedVector(self, vector):
-        #old v = Vector(vector)
-        return Vector(vector).normalized() #old v.normalized()
-    """
-    #PKHG>INFO not needed, done directly or this version? _notneeded added ;-)
-    def getCenterBetween2VertsXYZ_notneeded(self, vert1, vert2):
-        """
-        vector = self.getVectorBetween2VertsXYZ(vert1, vert2)
-        halfvector = [vector[0] / 2, vector[1] / 2, vector[2] / 2]
-        center = (vert1[0] + halfvector[0], vert1[1] + halfvector[1], vert1[2] + halfvector[2])
-        return center
-        """
-        return (Vector(vert1) + Vector(vert2)) * 0.5
 
     # get two of three coordinates used for further calculation of spin center
     #PKHG>nice if rescriction to these 3 types or planes is to be done 
@@ -260,7 +230,6 @@ class SelectionHelper:
     def selectVertexInMesh(self, mesh, vertex):
         bpy.ops.object.mode_set(mode = "OBJECT")
         for v in mesh.vertices:
-            #old if (v.co[0] == vertex[0]) and (v.co[1] == vertex[1]) and (v.co[2] == vertex[2]):
             if v.co == vertex:
                 v.select = True
                 break
@@ -450,32 +419,17 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
     def getEdgeInfo(self, edge):
-        #PKHG>??? vertices = self.getVerticesFromEdge(edge)
-        #PKHG>??? v1, v2 = vertices
-        V1 = edge.verts[0].co #old [v1.co.x, v1.co.y, v1.co.z]
-        V2 = edge.verts[1].co #old [v2.co.x, v2.co.y, v2.co.z]
-        edgeVector =  V2 - V1 #old self.calc.getVectorBetween2VertsXYZ(V1, V2)
-        edgeLength = edgeVector.length #old self.calc.getVectorLength(edgeVector)
-        edgeCenter = (V2 + V1) * 0.5 #old self.calc.getCenterBetween2VertsXYZ(V1, V2)
-        """
-        debugPrint("Edge info======================================")
-        debugPrint("V1 info==============")
-        debugPrint(V1)
-        debugPrint("V2 info==============")
-        debugPrint(V2)
-        debugPrint("Edge Length==============")
-        debugPrint(edgeLength)
-        debugPrint("Edge Center==============")
-        debugPrint(edgeCenter)
-        debugPrint("Edge info======================================")
-        """
+        V1 = edge.verts[0].co 
+        V2 = edge.verts[1].co 
+        edgeVector =  V2 - V1 
+        edgeLength = edgeVector.length 
+        edgeCenter = (V2 + V1) * 0.5 
         debugPrintNew(d_Edge_Info, "\nEdge info=====begin=================================",\
                       "V1 info============== " + str(V1),\
                       "V2 info============== " + str(V2),\
                       "Edge Length============== " + str(edgeLength),\
                       "Edge Center============== " + str(edgeCenter),\
                       "Edge info=====end=================================")
-        #PKHg>INFO all are now Vector behalf of edgeLength
         return V1, V2, edgeVector, edgeLength, edgeCenter
 
     def roundify(self, edge, parameters, bm, mesh):
@@ -531,10 +485,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         angle = 0
         if (parameters["modeEnum"] == 'Angle'):
-            if (parameters["angleEnum"] != 'Other'):
-                radius, angle = self.CalculateRadiusAndAngleForAnglePresets(parameters["angleEnum"], radius, angle, edgeLength)
-            else:
-                radius, angle = self.CalculateRadiusAndAngleForOtherAngle(edgeLength)
+            radius, angle = self.CalculateRadiusAndAngle(edgeLength)
 
         debugPrintNew(d_Radius_Angle, "RADIUS = " + str(radius) + "  ANGLE = " + str( angle))
         roots = None
@@ -588,7 +539,6 @@ class EdgeRoundifier(bpy.types.Operator):
         if parameters["fullCircles"] == False and parameters["flip"] == True:
             angle = -angle
         X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
-        #old debugPrint(X)
         return X
 
 
@@ -792,61 +742,22 @@ class EdgeRoundifier(bpy.types.Operator):
         point[2] + vector[2])
         return translated
 
-    def CalculateRadiusAndAngleForOtherAngle(self, edgeLength):
-        #PKHG>PROBLEM??? sin value never zero???
+    def CalculateRadiusAndAngle(self, edgeLength):
         degAngle = self.a
         angle = radians(degAngle)
         self.r = radius = edgeLength / (2 * sin(angle / 2))
         return radius, angle
 
-    def CalculateRadiusAndAngleForAnglePresets(self, mode, initR, initA, edgeLength):
-        radius = initR
-        angle = initA
-
-        if mode == "180":
-            radius = edgeLength / 2
-            angle = pi
-        elif mode == "120":
-            radius = edgeLength / 3 * sqrt(3)
-            angle = two_pi / 3
-        elif mode == "90":
-            radius = edgeLength / 2 * sqrt(2)
-            angle = pi / 2
-        elif mode == "60":
-            radius = edgeLength
-            angle = pi / 3
-        elif mode == "45":
-            radius = edgeLength / (2 * sin(pi / 8))
-            angle = pi / 4
-        elif mode == "30":
-            radius = edgeLength / (2 * sin(pi / 12))
-            angle = pi / 6
-        self.a = degrees(angle)
-        self.r = radius
-        debugPrint ("mode output, radius = ", radius, "angle = ", angle)
-        return radius, angle
-
     def getSpinCenterClosestToRefCenter(self, objLocation, roots, flip):
         root0Distance = (Vector(objLocation) - Vector(roots[0])).length
-        #old self.calc.getEdgeLength(objLocation, roots[0])
         root1Distance = (Vector(objLocation) - Vector(roots[1])).length #0ldself.calc.getEdgeLength(objLocation, roots[1])
-#         debugPrint("------------------------------")
-#         debugPrint(objLocation)
-#         debugPrint("roots[0]: ")
-#         debugPrint(roots[0])
-#         #debugPrint(translatedRoots[0])
-#         debugPrint(root0Distance)
-#         debugPrint("roots[1]: ")
-#         debugPrint(roots[1])
-#         #debugPrint(translatedRoots[1])
-#         debugPrint(root1Distance)
 
         chosenId = 0
         rejectedId = 1
         if (root0Distance > root1Distance):
             chosenId = 1
             rejectedId = 0
-        if flip: #PKHG>INFO checking for " == True" superflous:
+        if flip:
             return roots[rejectedId], roots[chosenId] 
         else:
             return roots[chosenId], roots[rejectedId]
@@ -866,19 +777,6 @@ class EdgeRoundifier(bpy.types.Operator):
                 roots[1] = Vector((c, startVertex[1], d))
         return roots
 
-    def getSelectedEdges(self, bm):
-        #PKHG>INFO Piotr learn to use 'listcomprehension" makes programming easier ;-)
-        """
-        listOfSelectedEdges = []
-        for e in bm.edges:
-            if e.select == True:
-                debugPrint("edges:", e)
-                listOfSelectedEdges.append(e)
-        return listOfSelectedEdges
-        """
-        debugPrintNew(d_Selected_edges, [ele.index for ele in bm.edges if ele.select]) 
-        return [ele for ele in bm.edges if ele.select]
-
     def selectEdgesAfterRoundifier(self, context, edges):
         bpy.ops.object.mode_set(mode = 'OBJECT')
         bpy.ops.object.mode_set(mode = 'EDIT')
@@ -888,15 +786,6 @@ class EdgeRoundifier(bpy.types.Operator):
         self.deselectEdges(bmnew)
         for selectedEdge in edges:
             for e in bmnew.edges:
-                #PKHG>question is the lenght not sufficient in place of coordinate?
-                """
-                if abs(e.verts[0].co.x - selectedEdge.verts[0].co.x) <= self.threshold \
-                and abs(e.verts[0].co.y - selectedEdge.verts[0].co.y) <= self.threshold \
-                and abs(e.verts[0].co.y - selectedEdge.verts[0].co.y) <= self.threshold \
-                and abs(e.verts[1].co.x - selectedEdge.verts[1].co.x) <= self.threshold \
-                and abs(e.verts[1].co.y - selectedEdge.verts[1].co.y) <= self.threshold \
-                and abs(e.verts[1].co.y - selectedEdge.verts[1].co.y) <= self.threshold:
-                """
                 if (e.verts[0].co - selectedEdge.verts[0].co).length <= self.threshold \
                    and (e.verts[1].co - selectedEdge.verts[1].co).length <= self.threshold:
                     e.select_set(True)
