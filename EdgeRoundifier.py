@@ -50,6 +50,7 @@ XY = "XY"
 XZ = "XZ"
 YZ = "YZ"
 SPIN_END_THRESHOLD = 0.001
+LINE_TOLERANCE = 0.0001
 
 # variable controlling all print functions
 #PKHG>??? to be replaced, see debugPrintNew ;-)
@@ -70,14 +71,14 @@ def debugPrintNew(debug,*text):
         for row in tmp:
             print(row)
 
-d_XABS_YABS = True
-d_Edge_Info = True
-d_Plane = True
+d_XABS_YABS = False
+d_Edge_Info = False
+d_Plane = False
 d_Radius_Angle = True
 d_Roots = True
 d_RefObject = True
-d_LineAB = True
-d_Selected_edges = True
+d_LineAB = False
+d_Selected_edges = False
 ###################################################################################
 
 ####################### Geometry and math calcualtion methods #####################
@@ -131,10 +132,10 @@ class CalculationHelper:
         xabs = abs(x2 - x1)
         yabs = abs(y2 - y1) 
         debugPrintNew(d_XABS_YABS, "XABS = " + str( xabs)+ " YABS = " + str(yabs))
-        #PKHG>??? 0.0001 make it globally set?
-        if xabs <= 0.0001:
-            return None  # this means line x= edgeCenterX
-        if yabs <= 0.0001:
+
+        if xabs <= LINE_TOLERANCE:
+            return None  # this means line x = edgeCenterX
+        if yabs <= LINE_TOLERANCE:
             A = 0
             B = y1
             return A, B
@@ -166,7 +167,6 @@ class CalculationHelper:
         # (x - a)**2 + (y - b)**2 = r**2 - circle equation
         # x = xValue - line equation
         # f * x**2 + g * x + h = 0 - quadratic equation
-        # TODO fix it for planes other then
         xValue = edgeCenter[0]
         if plane == YZ:
             xValue = edgeCenter[1]
@@ -188,18 +188,6 @@ class CalculationHelper:
         else:
             return None
 
-    ###PKHG>INFO directly done
-    """
-    def getEdgeLength(self, point1, point2):
-        '''
-        x1, y1, z1 = point1
-        x2, y2, z2 = point2
-        # TODO assupmtion Z=0
-        length = sqrt( (x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2 )
-        '''
-        return (Vector(point1)- Vector(point2)).length
-    """
-
     # point1 is the point near 90 deg angle
     def getAngle(self, point1, point2, point3):
         distance1 = (Vector(point1) - Vector(point2)).length
@@ -211,7 +199,9 @@ class CalculationHelper:
         return (alpha, degrees(alpha))
 
     # get two of three coordinates used for further calculation of spin center
-    #PKHG>nice if rescriction to these 3 types or planes is to be done 
+    #PKHG>nice if rescriction to these 3 types or planes is to be done
+    #komi3D> from 0.0.2 there is a restriction. In future I would like Edge Roundifier to work on
+    #komi3D> Normal and View coordinate systems. That would be great... 
     def getCircleMidPointOnPlane(self, V1, plane):
         X = V1[0]
         Y = V1[1]
@@ -262,9 +252,10 @@ class EdgeRoundifier(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO', 'PRESET'}  # enable undo for the operator.PKHG>INFO and PRESET
 
     threshold = 0.0005  # used for remove doubles and edge selection at the end
+
 # TODO:
 # 1) offset - move arcs perpendicular to edges
-# 2) allow other spin axes X and Y (global)
+
 
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
     a = bpy.props.FloatProperty(name = '', default = 180, min = 0.1, max = 180.0, step = 0.5, precision = 1)
@@ -320,7 +311,9 @@ class EdgeRoundifier(bpy.types.Operator):
         mesh = context.scene.objects.active.data
         bm = bmesh.new()
         bm.from_mesh(mesh) #PKHG>??? from_edit_mesh??? from_mesh not seen in 2.72a
-        edges = [ele for ele in bm.edges if ele.select] #old self.getSelectedEdges(bm)
+        #komi3D > from_mesh seems to be working in 2.72a...
+        
+        edges = [ele for ele in bm.edges if ele.select]
         return edges, mesh, bm
 
     def prepareParameters(self):
@@ -363,6 +356,7 @@ class EdgeRoundifier(bpy.types.Operator):
         row.label('Segments:')
         row.prop(self, 'n') #old , slider = True) 
         #PKHG>INFO dragging still works but changing 1 easier
+        #komi3D > thanks for pointing that out! :)
         row = layout.row(align = False)
         row.prop(self, 'flip')
         row.prop(self, 'invertAngle')
@@ -470,10 +464,8 @@ class EdgeRoundifier(bpy.types.Operator):
         # V1 V2 stores Local Coordinates
         V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
 
-        #old debugPrint("PLANE: ", parameters["plane"])
         debugPrintNew(d_Plane, "PLANE: " +  parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(edgeCenter, edgeVector, parameters["plane"])
-        #old debugPrint("Line Coefficients:", lineAB)
         debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
         circleMidPoint = V1
         circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters["plane"])
@@ -485,7 +477,10 @@ class EdgeRoundifier(bpy.types.Operator):
 
         angle = 0
         if (parameters["modeEnum"] == 'Angle'):
-            radius, angle = self.CalculateRadiusAndAngle(edgeLength)
+            if (parameters["angleEnum"] != 'Other'):
+                radius, angle = self.CalculateRadiusAndAngleForAnglePresets(parameters["angleEnum"], radius, angle, edgeLength)
+            else:
+                radius, angle = self.CalculateRadiusAndAngle(edgeLength)
 
         debugPrintNew(d_Radius_Angle, "RADIUS = " + str(radius) + "  ANGLE = " + str( angle))
         roots = None
@@ -498,9 +493,9 @@ class EdgeRoundifier(bpy.types.Operator):
                 debugPrint("No centers were found. Change radius to higher value")
                 return None
             roots = self.addMissingCoordinate(roots, V1, parameters["plane"])  # adds X, Y or Z coordinate
-
         else:
             roots = [edgeCenter, edgeCenter]
+
         debugPrintNew(d_Roots, "roots=" + str(roots))
 
         refObjectLocation = None
@@ -508,10 +503,11 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if parameters["refObject"] == "ORG":
             refObjectLocation = [0, 0, 0]
+            #refObjectLocation = objectLocation
         else:
             refObjectLocation = bpy.context.scene.cursor_location
 
-        debugPrintNew(d_RefObject, parameters["refObject"])
+        debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
         chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
 
         if (parameters["modeEnum"] == "Radius"):
@@ -541,10 +537,6 @@ class EdgeRoundifier(bpy.types.Operator):
         X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
         return X
 
-
-
-
-
     def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
 
@@ -553,14 +545,8 @@ class EdgeRoundifier(bpy.types.Operator):
         # Duplicate initial vertex
         v0 = bm.verts.new(v0org.co)
 
-        #old debugPrint("chosenSpinCenter= ")
-        #old debugPrint(chosenSpinCenter)
-
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
-
-        #old debugPrint ("LEN after=")
-        #old debugPrint(len(bm.verts))
 
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
@@ -569,18 +555,13 @@ class EdgeRoundifier(bpy.types.Operator):
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
         debugPrintNew(True, str(result) + "lastVertIndex =" + str(lastVertIndex))
 
-        #old debugPrint("result1:")
-        #old debugPrint(lastVertIndex)
-        #old debugPrint(lastSpinVertIndices)
-        #TODO CLean UP!!!
-
         if (angle == pi or angle == -pi):
 
             midVertexIndex = lastVertIndex - round(steps / 2)
             midVert = bm.verts[midVertexIndex].co
 
-            midVertexDistance = (Vector(refObjectLocation) - Vector(midVert)).length #old self.calc.getEdgeLength(refObjectLocation, midVert)
-            midEdgeDistance = (Vector(refObjectLocation) - Vector(edgeCenter)).length #old self.calc.getEdgeLength(refObjectLocation, edgeCenter)
+            midVertexDistance = (Vector(refObjectLocation) - Vector(midVert)).length 
+            midEdgeDistance = (Vector(refObjectLocation) - Vector(edgeCenter)).length
 
             debugPrint("midVertexDistance: ")
             debugPrint(midVertexDistance)
@@ -630,7 +611,7 @@ class EdgeRoundifier(bpy.types.Operator):
             debugPrint (i)
 
         self.deleteSpinVertices(bm, mesh, lastSpinVertIndices)
-#        v0prim = bm.verts.new(v0.co)
+#        v0prim = bm.verts.new(v0.co) #komi3d > I am not sure if it should be new vert here or not...
         v0prim = v0
         debugPrint("== v0prim index: ==")
         debugPrint(v0prim.index)
@@ -684,14 +665,15 @@ class EdgeRoundifier(bpy.types.Operator):
         lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
         return lastSpinVertIndices
 
-
+#komi3d > this method will be reworked when working on the offset function
     def getOffsetVectorForTangency(self, edgeCenter, chosenSpinCenter, radius, invertAngle):
         edgeCentSpinCentVector = Vector(chosenSpinCenter) - Vector(edgeCenter)
         if invertAngle:
             edgeCentSpinCentVector = - edgeCentSpinCentVector
         """ see above same result 
         if invertAngle == False:
-            edgeCentSpinCentVector = Vector(chosenSpinCenter) - Vector(edgeCenter) #old self.calc.getVectorBetween2VertsXYZ(edgeCenter, chosenSpinCenter)
+            edgeCentSpinCentVector = Vector(chosenSpinCenter) - Vector(edgeCenter) 
+            #old self.calc.getVectorBetween2VertsXYZ(edgeCenter, chosenSpinCenter)
         else:
             edgeCentSpinCentVector = self.calc.getVectorBetween2VertsXYZ(chosenSpinCenter, edgeCenter)
         """
@@ -708,7 +690,7 @@ class EdgeRoundifier(bpy.types.Operator):
         else:
             offsetLength = radius - vectorLength
 
-        normalizedVector = edgeCentSpinCentVector.normalized() #old self.calc.getNormalizedVector(edgeCentSpinCentVector)
+        normalizedVector = edgeCentSpinCentVector.normalized()
         """ PKHF>INFO use Vector properties!
         offsetVector = (offsetLength * normalizedVector[0],
                         offsetLength * normalizedVector[1],
@@ -728,8 +710,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def translateRoots(self, roots, objectLocation):
         # translationVector = self.calc.getVectorBetween2VertsXYZ(objectLocation, [0,0,0])
-        r1 = Vector(roots[0]) + Vector(objectLocation) #old self.translateByVector(roots[0], objectLocation)
-        r2 = Vector(roots[1]) + Vector(objectLocation) #oldself.translateByVector(roots[1], objectLocation)
+        r1 = Vector(roots[0]) + Vector(objectLocation) 
+        r2 = Vector(roots[1]) + Vector(objectLocation)
         return [r1, r2]
     #PKHg>INFO not needed if 3D or 2D lists are replaced by Vector
     def getOppositeVector(self, originalVector):
@@ -747,10 +729,37 @@ class EdgeRoundifier(bpy.types.Operator):
         angle = radians(degAngle)
         self.r = radius = edgeLength / (2 * sin(angle / 2))
         return radius, angle
+    
+    def CalculateRadiusAndAngleForAnglePresets(self, mode, initR, initA, edgeLength):
+        radius = initR
+        angle = initA
+
+        if mode == "180":
+            radius = edgeLength / 2
+            angle = pi
+        elif mode == "120":
+            radius = edgeLength / 3 * sqrt(3)
+            angle = 2 * pi / 3
+        elif mode == "90":
+            radius = edgeLength / 2 * sqrt(2)
+            angle = pi / 2
+        elif mode == "60":
+            radius = edgeLength
+            angle = pi / 3
+        elif mode == "45":
+            radius = edgeLength / (2 * sin(pi / 8))
+            angle = pi / 4
+        elif mode == "30":
+            radius = edgeLength / (2 * sin(pi / 12))
+            angle = pi / 6
+        self.a = degrees(angle)
+        self.r = radius
+        debugPrint ("mode output, radius = ", radius, "angle = ", angle)
+        return radius, angle
 
     def getSpinCenterClosestToRefCenter(self, objLocation, roots, flip):
         root0Distance = (Vector(objLocation) - Vector(roots[0])).length
-        root1Distance = (Vector(objLocation) - Vector(roots[1])).length #0ldself.calc.getEdgeLength(objLocation, roots[1])
+        root1Distance = (Vector(objLocation) - Vector(roots[1])).length 
 
         chosenId = 0
         rejectedId = 1
@@ -800,26 +809,6 @@ class EdgeRoundifier(bpy.types.Operator):
         for edge in bm.edges:
             edge.select_set(False)
 
-    #PKHG>INFO directly done:
-    """
-    def getVerticesFromEdge(self, edge):
-        v1 = edge.verts[0]
-        v2 = edge.verts[1]
-        return (v1, v2)
-    """
-
-
-    #PKHG>??? only selected edges?!
-    def debugPrintEdgesInfo(self, edges):
-        debugPrint("=== Selected edges ===")
-        for e in edges:
-            #PKHG>INFO .co added ;-)
-            v1 = e.verts[0].co
-            v2 = e.verts[1].co
-            debugPrint(v1[:]) #old v1.co.x, v1.co.y, v1.co.z)
-            debugPrint(v2[:]) #old v2.co.x, v2.co.y, v2.co.z)
-            debugPrint("----------")
-
     def getSpinAxis(self, plane):
         axis = (0, 0, 1)
         if plane == YZ:
@@ -827,7 +816,6 @@ class EdgeRoundifier(bpy.types.Operator):
         if plane == XZ:
             axis = (0, 1, 0)
         return axis
-
 
     @classmethod
     def poll(cls, context):
