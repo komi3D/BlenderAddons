@@ -555,6 +555,8 @@ class EdgeRoundifier(bpy.types.Operator):
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
         debugPrintNew(True, str(result) + "lastVertIndex =" + str(lastVertIndex))
 
+        alternativeLastSpinVertIndices = []
+
         if (angle == pi or angle == -pi):
 
             midVertexIndex = lastVertIndex - round(steps / 2)
@@ -570,19 +572,25 @@ class EdgeRoundifier(bpy.types.Operator):
 
             if (parameters["invertAngle"]) or (parameters["flip"]):
                 if (midVertexDistance > midEdgeDistance):
-                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                    alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
             elif (parameters["bothSides"]):
-                self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
-                self.alternateSpin(bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
+                #do some more testing here!!!
+                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
+                alternativeLastSpinVertIndices2 = self.alternateSpin(bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
+                if alternativeLastSpinVertIndices2 != []:
+                    alternativeLastSpinVertIndices = alternativeLastSpinVertIndices2
             else:
                 if (midVertexDistance < midEdgeDistance):
-                    self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                    alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
 
         elif (angle != two_pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-                self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
         #PKHG sel is SelectionHelper  print(type(self.sel),dir(self.sel))
         self.sel.refreshMesh(bm, mesh)
+        if alternativeLastSpinVertIndices != []:
+            lastSpinVertIndices = alternativeLastSpinVertIndices
+        return lastSpinVertIndices
 
 ##########################################
 
@@ -638,10 +646,11 @@ class EdgeRoundifier(bpy.types.Operator):
         debugPrint("last:")
         debugPrint(result2['geom_last'][0].index)
 
-
+        lastSpinVertIndices2 = self.getLastSpinVertIndices(steps, lastVertIndex2)
+        
 # second spin also does not hit the v1org
         if (result2['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-            lastSpinVertIndices2 = self.getLastSpinVertIndices(steps, lastVertIndex2)
+            
             debugPrint("== lastVertIndex2: ==")
             debugPrint(result2['geom_last'][0].index)
             debugPrint(lastVertIndex2)
@@ -658,7 +667,9 @@ class EdgeRoundifier(bpy.types.Operator):
             debugPrint(lastSpinVertIndices2)
             self.deleteSpinVertices(bm, mesh, lastSpinVertIndices2)
             self.deleteSpinVertices(bm, mesh, range(v0.index, v0.index + 1))
-
+            return []
+        else:
+            return lastSpinVertIndices2
 
     def getLastSpinVertIndices(self, steps, lastVertIndex):
         arcfirstVertexIndex = lastVertIndex - steps + 1
