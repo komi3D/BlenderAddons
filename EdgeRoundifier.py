@@ -29,8 +29,8 @@ bl_info = {
     "name": "Edge Roundifier",
     "category": "Mesh",
     'author': 'Piotr Komisarczyk (komi3D), PKHG',
-    'version': (0, 0, 4),
-    'blender': (2, 7, 1),
+    'version': (0, 0, 5),
+    'blender': (2, 7, 3),
     'location': 'SPACE > Edge Roundifier or CTRL-E > Edge Roundifier',
     'description': 'Mesh editing script allowing edge rounding',
     'wiki_url': '',
@@ -551,6 +551,7 @@ class EdgeRoundifier(bpy.types.Operator):
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
         vertsLength = len(bm.verts)
+        bm.verts.ensure_lookup_table()
         lastVertIndex = bm.verts[vertsLength - 1].index
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
         debugPrintNew(True, str(result) + "lastVertIndex =" + str(lastVertIndex))
@@ -560,6 +561,7 @@ class EdgeRoundifier(bpy.types.Operator):
         if (angle == pi or angle == -pi):
 
             midVertexIndex = lastVertIndex - round(steps / 2)
+            bm.verts.ensure_lookup_table()
             midVert = bm.verts[midVertexIndex].co
 
             midVertexDistance = (Vector(refObjectLocation) - Vector(midVert)).length 
@@ -597,6 +599,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def deleteSpinVertices(self, bm, mesh, lastSpinVertIndices):
         verticesForDeletion = []
+        bm.verts.ensure_lookup_table()
         for i in lastSpinVertIndices:
             vi = bm.verts[i]
             vi.select = True
@@ -638,6 +641,7 @@ class EdgeRoundifier(bpy.types.Operator):
         debugPrint ("LEN after=")
         debugPrint(len(bm.verts))
         vertsLength = len(bm.verts)
+        bm.verts.ensure_lookup_table()
         lastVertIndex2 = bm.verts[vertsLength - 1].index
         debugPrint("== 2nd spin performed==")
         for v in bm.verts:
