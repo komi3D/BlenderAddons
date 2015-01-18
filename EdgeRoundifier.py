@@ -42,7 +42,7 @@ import bmesh
 import bpy
 import bpy.props
 from math import sqrt, acos, pi, radians, degrees, sin, acos
-from mathutils import Vector
+from mathutils import Vector, Euler
 
 # CONSTANTS
 two_pi = 2 * pi #PKHG>??? maybe other constantly used values too???
@@ -74,12 +74,12 @@ def debugPrintNew(debug,*text):
 d_XABS_YABS = False
 d_Edge_Info = False
 d_Plane = False
-d_Radius_Angle = True
+d_Radius_Angle = False
 d_Roots = True
 d_RefObject = True
 d_LineAB = False
 d_Selected_edges = False
-d_Rotate_Around_Spin_Center = True
+d_Rotate_Around_Spin_Center = False
 ###################################################################################
 
 ####################### Geometry and math calcualtion methods #####################
@@ -259,7 +259,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
-    a = bpy.props.FloatProperty(name = '', default = 180, min = 0.1, max = 180.0, step = 0.5, precision = 1)
+    a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.1, precision = 1)
     n = bpy.props.IntProperty(name = '', default = 4, min = 1, max = 100, step = 1)
     flip = bpy.props.BoolProperty(name = 'flip', default = False)
     invertAngle = bpy.props.BoolProperty(name = 'invertAngle', default = False)
@@ -267,6 +267,7 @@ class EdgeRoundifier(bpy.types.Operator):
     bothSides = bpy.props.BoolProperty(name = 'bothSides', default = False)
     removeDoubles = bpy.props.BoolProperty(name = 'removeDoubles', default = False)
     removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
+    axisAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.1, precision = 1)
     # FUTURE TODO: OFFSET
     # offset = bpy.props.BoolProperty(name = 'offset', default = False)
 
@@ -333,6 +334,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["refObject"] = self.referenceLocation
         parameters["removeDoubles"] = self.removeDoubles
         parameters["removeEdges"] = self.removeEdges
+        parameters["axisAngle"] = self.axisAngle
 
         # FUTURE TODO OFFSET
         # parameters["offset"] = self.offset
@@ -367,6 +369,7 @@ class EdgeRoundifier(bpy.types.Operator):
         row = layout.row(align = False)
         row.prop(self, 'removeDoubles')
         row.prop(self, 'removeEdges')
+        
 
         # FUTURE TODO OFFSET
         # row.prop(self, 'offset')
@@ -376,6 +379,12 @@ class EdgeRoundifier(bpy.types.Operator):
 
         layout.label('Working Plane (LOCAL coordinates):')
         layout.prop(self, 'planeEnum', expand = True, text = "a")
+
+        row = layout.row(align = False)
+        row.label('=== EXTRA OPTIONS ===')
+        row = layout.row(align = False)
+        row.label('Rotation around axis angle:')
+        row.prop(self,'axisAngle')
 
 
     def execute(self, context):
@@ -434,13 +443,18 @@ class EdgeRoundifier(bpy.types.Operator):
             return
 
         roundifyParams = self.calculateRoundifyParams(edge, parameters, bm, mesh)
+        if roundifyParams == None:
+            return
         #PKHG>TEST only once debugPrintNew(True, str(roundifyParams))
-        self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+        spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+        self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+        
         if parameters["bothSides"]:
             lastSpinCenter = roundifyParams[0]
             roundifyParams[0] = roundifyParams[1]
             roundifyParams[1] = lastSpinCenter
-            self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+            spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+            self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
 
     def skipThisEdge(self, V1, V2, plane):
         #debugPrintNew(True," type of V1" + str(type(V1)))
@@ -482,7 +496,6 @@ class EdgeRoundifier(bpy.types.Operator):
                 radius, angle = self.CalculateRadiusAndAngleForAnglePresets(parameters["angleEnum"], radius, angle, edgeLength)
             else:
                 radius, angle = self.CalculateRadiusAndAngle(edgeLength)
-
         debugPrintNew(d_Radius_Angle, "RADIUS = " + str(radius) + "  ANGLE = " + str( angle))
         roots = None
         if angle != pi:  # mode other than 180
@@ -496,7 +509,6 @@ class EdgeRoundifier(bpy.types.Operator):
             roots = self.addMissingCoordinate(roots, V1, parameters["plane"])  # adds X, Y or Z coordinate
         else:
             roots = [edgeCenter, edgeCenter]
-
         debugPrintNew(d_Roots, "roots=" + str(roots))
 
         refObjectLocation = None
@@ -506,7 +518,7 @@ class EdgeRoundifier(bpy.types.Operator):
             refObjectLocation = [0, 0, 0]
             #refObjectLocation = objectLocation
         else:
-            refObjectLocation = bpy.context.scene.cursor_location
+            refObjectLocation = bpy.context.scene.cursor_location - objectLocation
 
         debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
         chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
@@ -539,45 +551,18 @@ class EdgeRoundifier(bpy.types.Operator):
         return X
 
 
-    def rotateInitialVertexAroundSpinAxis(self, edge, v0, spinCenter, rotateAxis, angle):
-        
-        edge.verts[0].select = False
-        edge.verts[1].select = False
-        edge.select = False
-        
-        v0.select = True
-        #save current values
-        stored3DCursorLocation = bpy.context.scene.cursor_location.copy()  #
-        storedPivotPoint = bpy.context.space_data.pivot_point
-        #set new values
-        bpy.context.scene.cursor_location = spinCenter
-        bpy.context.space_data.pivot_point='CURSOR'
-        #rotate
-        bpy.ops.transform.rotate(value=angle, axis=rotateAxis)
-        #restore old values
-        bpy.context.scene.cursor_location = stored3DCursorLocation
-        bpy.context.space_data.pivot_point=storedPivotPoint
-        
-        edge.verts[0].select = True
-        edge.verts[1].select = True
-        edge.select = True
+
         
         
-        
-    def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
+    def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):       
         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
 
         v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
 
         # Duplicate initial vertex
+
         v0 = bm.verts.new(v0org.co)
-
-        debugPrintNew(d_Rotate_Around_Spin_Center, "ROTATE BEFORE:v0.co=" + str(v0.co))
         
-        self.rotateInitialVertexAroundSpinAxis(edge,v0,chosenSpinCenter,spinAxis,pi/8)
-        
-        debugPrintNew(d_Rotate_Around_Spin_Center, "ROTATE AFTER >>> :v0.co=" + str(v0.co))
-
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
 
@@ -625,9 +610,44 @@ class EdgeRoundifier(bpy.types.Operator):
         self.sel.refreshMesh(bm, mesh)
         if alternativeLastSpinVertIndices != []:
             lastSpinVertIndices = alternativeLastSpinVertIndices
-        return lastSpinVertIndices
+        
+        bm.verts.ensure_lookup_table()
+        
+        #print("LEN=" + str(len(bm.verts)))
+        #print("lastSpinVertInd LEN=" + str(len(lastSpinVertIndices)) )
+        #print("lastSpinVertInd =" + str(lastSpinVertIndices))
+        
+        spinVertices = []
+        if lastSpinVertIndices.stop == len(bm.verts): #make sure arc was added to bmesh
+            spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
+            spinVertices = [v0] + spinVertices
+        return spinVertices
 
 ##########################################
+
+
+    def rotateArcAroundSpinAxis(self, bm, mesh, vertices, roundifyParams, parameters):
+        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+        axisAngle = parameters["axisAngle"]
+        plane = parameters["plane"]
+        #compensate rotation center
+        objectLocation = bpy.context.active_object.location
+        center = objectLocation + chosenSpinCenter 
+        
+        rot = Euler( (0.0, 0.0, radians(axisAngle)),'XYZ' ).to_matrix()
+        if plane == YZ:
+            rot = Euler( (radians(axisAngle),0.0, 0.0 ),'XYZ' ).to_matrix()
+        if plane == XZ:
+            rot = Euler( (0.0, radians(axisAngle),0.0),'XYZ' ).to_matrix()
+                
+        bmesh.ops.rotate(
+                    bm,
+                    cent=center,
+                    matrix=rot,
+                    verts=vertices,
+                    space=bpy.context.edit_object.matrix_world
+                    )
+        self.sel.refreshMesh(bm, mesh)
 
 
     def deleteSpinVertices(self, bm, mesh, lastSpinVertIndices):
