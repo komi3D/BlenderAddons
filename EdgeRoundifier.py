@@ -29,7 +29,7 @@ bl_info = {
     "name": "Edge Roundifier",
     "category": "Mesh",
     'author': 'Piotr Komisarczyk (komi3D), PKHG',
-    'version': (0, 0, 5),
+    'version': (0, 0, 6),
     'blender': (2, 7, 3),
     'location': 'SPACE > Edge Roundifier or CTRL-E > Edge Roundifier',
     'description': 'Mesh editing script allowing edge rounding',
@@ -79,6 +79,7 @@ d_Roots = True
 d_RefObject = True
 d_LineAB = False
 d_Selected_edges = False
+d_Rotate_Around_Spin_Center = True
 ###################################################################################
 
 ####################### Geometry and math calcualtion methods #####################
@@ -537,6 +538,32 @@ class EdgeRoundifier(bpy.types.Operator):
         X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
         return X
 
+
+    def rotateInitialVertexAroundSpinAxis(self, edge, v0, spinCenter, rotateAxis, angle):
+        
+        edge.verts[0].select = False
+        edge.verts[1].select = False
+        edge.select = False
+        
+        v0.select = True
+        #save current values
+        stored3DCursorLocation = bpy.context.scene.cursor_location.copy()  #
+        storedPivotPoint = bpy.context.space_data.pivot_point
+        #set new values
+        bpy.context.scene.cursor_location = spinCenter
+        bpy.context.space_data.pivot_point='CURSOR'
+        #rotate
+        bpy.ops.transform.rotate(value=angle, axis=rotateAxis)
+        #restore old values
+        bpy.context.scene.cursor_location = stored3DCursorLocation
+        bpy.context.space_data.pivot_point=storedPivotPoint
+        
+        edge.verts[0].select = True
+        edge.verts[1].select = True
+        edge.select = True
+        
+        
+        
     def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
 
@@ -544,6 +571,12 @@ class EdgeRoundifier(bpy.types.Operator):
 
         # Duplicate initial vertex
         v0 = bm.verts.new(v0org.co)
+
+        debugPrintNew(d_Rotate_Around_Spin_Center, "ROTATE BEFORE:v0.co=" + str(v0.co))
+        
+        self.rotateInitialVertexAroundSpinAxis(edge,v0,chosenSpinCenter,spinAxis,pi/8)
+        
+        debugPrintNew(d_Rotate_Around_Spin_Center, "ROTATE AFTER >>> :v0.co=" + str(v0.co))
 
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
