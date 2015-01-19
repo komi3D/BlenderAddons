@@ -257,7 +257,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
-    a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.1, precision = 1)
+    a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.5, precision = 1)
     n = bpy.props.IntProperty(name = '', default = 4, min = 1, max = 100, step = 1)
     flip = bpy.props.BoolProperty(name = 'flip', default = False)
     invertAngle = bpy.props.BoolProperty(name = 'invertAngle', default = False)
@@ -265,8 +265,9 @@ class EdgeRoundifier(bpy.types.Operator):
     bothSides = bpy.props.BoolProperty(name = 'bothSides', default = False)
     removeDoubles = bpy.props.BoolProperty(name = 'removeDoubles', default = False)
     removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
-    axisAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.1, precision = 1)
+    axisAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.5, precision = 1)
     offset = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
+    offset2 = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
     
     modeItems = [('Radius', "Radius", ""), ("Angle", "Angle", "")]
     modeEnum = bpy.props.EnumProperty(
@@ -333,6 +334,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["removeEdges"] = self.removeEdges
         parameters["axisAngle"] = self.axisAngle
         parameters["offset"] = self.offset
+        parameters["offset2"] = self.offset2
         return parameters
 
     def draw(self, context):
@@ -364,10 +366,6 @@ class EdgeRoundifier(bpy.types.Operator):
         row = layout.row(align = False)
         row.prop(self, 'removeDoubles')
         row.prop(self, 'removeEdges')
-        
-
-        # FUTURE TODO OFFSET
-        # row.prop(self, 'offset')
 
         layout.label('Reference Location:')
         layout.prop(self, 'referenceLocation', expand = True, text = "a")
@@ -381,8 +379,11 @@ class EdgeRoundifier(bpy.types.Operator):
         row.label('Rotation around axis angle:')
         row.prop(self,'axisAngle')
         row = layout.row(align = False)
-        row.label('Offset arc:')
+        row.label('Orhto Offset arc:')
         row.prop(self,'offset')
+        row = layout.row(align = False)
+        row.label('Parallel Offset arc:')
+        row.prop(self,'offset2')
 
     def execute(self, context):
 
@@ -416,16 +417,16 @@ class EdgeRoundifier(bpy.types.Operator):
         for e in edges:
             self.roundify(e, parameters, bm, mesh)
 
-
-    def getEdgePerpendicularVector (self,edge, plane):
+    def getNormalizedEdgeVector (self, edge):
         V1 = edge.verts[0].co 
         V2 = edge.verts[1].co 
         edgeVector =  V2 - V1
-        print ("NORMALIZED")
         normEdge = edgeVector.normalized()
-        print(edgeVector)
-        print(normEdge)
-        
+        return normEdge
+
+    def getEdgePerpendicularVector (self,edge, plane):
+        normEdge = self.getNormalizedEdgeVector(edge)
+
         edgePerpendicularVector = Vector((normEdge[1], -normEdge[0], 0))
         if plane == YZ:
             edgePerpendicularVector = Vector((0, normEdge[2], -normEdge[1]))
@@ -459,7 +460,8 @@ class EdgeRoundifier(bpy.types.Operator):
         #PKHG>TEST only once debugPrintNew(True, str(roundifyParams))
         spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
         rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
-        self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+        offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+        offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
         
         
         if parameters["bothSides"]:
@@ -468,19 +470,37 @@ class EdgeRoundifier(bpy.types.Operator):
             roundifyParams[1] = lastSpinCenter
             spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
             rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
-            self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+            offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+            offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
+        
 
-    def offsetArcPerpendicular(self, bm, mesh, rotatedVerts, edge, parameters):
+    def offsetArcPerpendicular(self, bm, mesh, Verts, edge, parameters):
         perpendicularVector = self.getEdgePerpendicularVector(edge, parameters["plane"])
         offset = parameters["offset"]
         translation = offset * perpendicularVector
         
         bmesh.ops.translate(
         bm,
-        verts=rotatedVerts,
+        verts=Verts,
         vec=translation)
         
-        indexes = [v.index for v in rotatedVerts] 
+        indexes = [v.index for v in Verts] 
+        self.sel.refreshMesh(bm, mesh)
+        offsetVertices = [bm.verts[i] for i in indexes]
+        return offsetVertices
+    
+    def offsetArcParallel(self, bm, mesh, Verts, edge, parameters):
+        
+        edgeVector = self.getNormalizedEdgeVector(edge)
+        offset = parameters["offset2"]
+        translation = offset * edgeVector
+        
+        bmesh.ops.translate(
+        bm,
+        verts=Verts,
+        vec=translation)
+        
+        indexes = [v.index for v in Verts] 
         self.sel.refreshMesh(bm, mesh)
         offsetVertices = [bm.verts[i] for i in indexes]
         return offsetVertices
@@ -662,10 +682,6 @@ class EdgeRoundifier(bpy.types.Operator):
             rot = Euler( (radians(axisAngle),0.0, 0.0 ),'XYZ' ).to_matrix()
         if plane == XZ:
             rot = Euler( (0.0, radians(axisAngle),0.0),'XYZ' ).to_matrix()
-#        print ("vertices before rotation:")
-#        for v in vertices:
-#            print (v.index)
-#            print (v.co)
            
         indexes = [v.index for v in vertices] 
         bmesh.ops.rotate(
@@ -677,10 +693,6 @@ class EdgeRoundifier(bpy.types.Operator):
                     )
         self.sel.refreshMesh(bm, mesh)
         rotatedVertices = [bm.verts[i] for i in indexes]
- #       print ("vertices after rotation:")
- #       for v in rotatedVertices:
- #           print (v.index)
- #           print (v.co)
         
         return rotatedVertices
             
