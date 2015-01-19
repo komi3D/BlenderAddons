@@ -213,6 +213,7 @@ class CalculationHelper:
             X = V1[1]
             Y = V1[2]
         return [X, Y]
+        
 
 ########################################################
 ################# SELECTION METHODS ####################
@@ -254,9 +255,6 @@ class EdgeRoundifier(bpy.types.Operator):
 
     threshold = 0.0005  # used for remove doubles and edge selection at the end
 
-# TODO:
-# 1) offset - move arcs perpendicular to edges
-
 
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
     a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.1, precision = 1)
@@ -268,9 +266,8 @@ class EdgeRoundifier(bpy.types.Operator):
     removeDoubles = bpy.props.BoolProperty(name = 'removeDoubles', default = False)
     removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
     axisAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.1, precision = 1)
-    # FUTURE TODO: OFFSET
-    # offset = bpy.props.BoolProperty(name = 'offset', default = False)
-
+    offset = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
+    
     modeItems = [('Radius', "Radius", ""), ("Angle", "Angle", "")]
     modeEnum = bpy.props.EnumProperty(
         items = modeItems,
@@ -335,9 +332,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["removeDoubles"] = self.removeDoubles
         parameters["removeEdges"] = self.removeEdges
         parameters["axisAngle"] = self.axisAngle
-
-        # FUTURE TODO OFFSET
-        # parameters["offset"] = self.offset
+        parameters["offset"] = self.offset
         return parameters
 
     def draw(self, context):
@@ -385,14 +380,14 @@ class EdgeRoundifier(bpy.types.Operator):
         row = layout.row(align = False)
         row.label('Rotation around axis angle:')
         row.prop(self,'axisAngle')
-
+        row = layout.row(align = False)
+        row.label('Offset arc:')
+        row.prop(self,'offset')
 
     def execute(self, context):
 
         edges, mesh, bm = self.prepareMesh(context)
         parameters = self.prepareParameters()
-
-        #PKHG>??? not really needed, works! debugPrintNew(True ,"EDGES " + str( edges))
 
         if len(edges) > 0:
             self.roundifyEdges(edges, parameters, bm, mesh)
@@ -422,6 +417,22 @@ class EdgeRoundifier(bpy.types.Operator):
             self.roundify(e, parameters, bm, mesh)
 
 
+    def getEdgePerpendicularVector (self,edge, plane):
+        V1 = edge.verts[0].co 
+        V2 = edge.verts[1].co 
+        edgeVector =  V2 - V1
+        print ("NORMALIZED")
+        normEdge = edgeVector.normalized()
+        print(edgeVector)
+        print(normEdge)
+        
+        edgePerpendicularVector = Vector((normEdge[1], -normEdge[0], 0))
+        if plane == YZ:
+            edgePerpendicularVector = Vector((0, normEdge[2], -normEdge[1]))
+        if plane == XZ:
+            edgePerpendicularVector = Vector((normEdge[2], 0, -normEdge[0]))
+        return edgePerpendicularVector
+            
     def getEdgeInfo(self, edge):
         V1 = edge.verts[0].co 
         V2 = edge.verts[1].co 
@@ -447,15 +458,34 @@ class EdgeRoundifier(bpy.types.Operator):
             return
         #PKHG>TEST only once debugPrintNew(True, str(roundifyParams))
         spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-        self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+        rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+        self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+        
         
         if parameters["bothSides"]:
             lastSpinCenter = roundifyParams[0]
             roundifyParams[0] = roundifyParams[1]
             roundifyParams[1] = lastSpinCenter
             spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-            self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+            rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+            self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
 
+    def offsetArcPerpendicular(self, bm, mesh, rotatedVerts, edge, parameters):
+        perpendicularVector = self.getEdgePerpendicularVector(edge, parameters["plane"])
+        offset = parameters["offset"]
+        translation = offset * perpendicularVector
+        
+        bmesh.ops.translate(
+        bm,
+        verts=rotatedVerts,
+        vec=translation)
+        
+        indexes = [v.index for v in rotatedVerts] 
+        self.sel.refreshMesh(bm, mesh)
+        offsetVertices = [bm.verts[i] for i in indexes]
+        return offsetVertices
+        
+        
     def skipThisEdge(self, V1, V2, plane):
         #debugPrintNew(True," type of V1" + str(type(V1)))
         # Check If It is possible to spin selected verts on this plane if not exit roundifier
@@ -535,13 +565,6 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if(parameters["fullCircles"]):
             angle = two_pi
-
-        # FUTURE TODO OFFSET
-#        if parameters["offset"]:
-#            offset = self.getOffsetVectorForTangency(edgeCenter, chosenSpinCenter, radius, self.invertAngle)
-#            self.moveSelectedVertexByVector(mesh,offset)
-#            chosenSpinCenterOffset = self.translateByVector(chosenSpinCenter, offset)
-#            chosenSpinCenter = chosenSpinCenterOffset
 
         steps = parameters["segments"]
 
@@ -639,7 +662,12 @@ class EdgeRoundifier(bpy.types.Operator):
             rot = Euler( (radians(axisAngle),0.0, 0.0 ),'XYZ' ).to_matrix()
         if plane == XZ:
             rot = Euler( (0.0, radians(axisAngle),0.0),'XYZ' ).to_matrix()
-                
+#        print ("vertices before rotation:")
+#        for v in vertices:
+#            print (v.index)
+#            print (v.co)
+           
+        indexes = [v.index for v in vertices] 
         bmesh.ops.rotate(
                     bm,
                     cent=center,
@@ -648,8 +676,14 @@ class EdgeRoundifier(bpy.types.Operator):
                     space=bpy.context.edit_object.matrix_world
                     )
         self.sel.refreshMesh(bm, mesh)
-
-
+        rotatedVertices = [bm.verts[i] for i in indexes]
+ #       print ("vertices after rotation:")
+ #       for v in rotatedVertices:
+ #           print (v.index)
+ #           print (v.co)
+        
+        return rotatedVertices
+            
     def deleteSpinVertices(self, bm, mesh, lastSpinVertIndices):
         verticesForDeletion = []
         bm.verts.ensure_lookup_table()
@@ -732,49 +766,6 @@ class EdgeRoundifier(bpy.types.Operator):
         arcfirstVertexIndex = lastVertIndex - steps + 1
         lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
         return lastSpinVertIndices
-
-#komi3d > this method will be reworked when working on the offset function
-    def getOffsetVectorForTangency(self, edgeCenter, chosenSpinCenter, radius, invertAngle):
-        edgeCentSpinCentVector = Vector(chosenSpinCenter) - Vector(edgeCenter)
-        if invertAngle:
-            edgeCentSpinCentVector = - edgeCentSpinCentVector
-        """ see above same result 
-        if invertAngle == False:
-            edgeCentSpinCentVector = Vector(chosenSpinCenter) - Vector(edgeCenter) 
-            #old self.calc.getVectorBetween2VertsXYZ(edgeCenter, chosenSpinCenter)
-        else:
-            edgeCentSpinCentVector = self.calc.getVectorBetween2VertsXYZ(chosenSpinCenter, edgeCenter)
-        """
-
-        vectorLength = self.calc.getVectorLength(edgeCentSpinCentVector)
-        """PKHG>INFO  == not needed if reversed!
-        if invertAngle == False:
-            offsetLength = radius - vectorLength
-        else:
-            offsetLength = radius + vectorLength
-        """
-        if invertAngle:
-            offsetLength = radius + vectorLength    
-        else:
-            offsetLength = radius - vectorLength
-
-        normalizedVector = edgeCentSpinCentVector.normalized()
-        """ PKHF>INFO use Vector properties!
-        offsetVector = (offsetLength * normalizedVector[0],
-                        offsetLength * normalizedVector[1],
-                        offsetLength * normalizedVector[2])
-        """
-        return offsetLength * normalizedVector
-
-
-    def moveSelectedVertexByVector(self, mesh, offset):
-        vert = self.getSelectedVertex(mesh)
-        """ use Vector propeties
-        vert.co.x = vert.co.x + offset[0]
-        vert.co.y = vert.co.y + offset[1]
-        vert.co.z = vert.co.z + offset[2]
-        """
-        vert.co += Vector(offset)
 
     def translateRoots(self, roots, objectLocation):
         # translationVector = self.calc.getVectorBetween2VertsXYZ(objectLocation, [0,0,0])
