@@ -255,7 +255,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     threshold = 0.0005  # used for remove doubles and edge selection at the end
 
-
+    edgeScaleFactor = bpy.props.FloatProperty(name = '', default = 1.0, min = 0.00001, max = 100000.0, step = 0.5, precision = 5)
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
     a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.5, precision = 1)
     n = bpy.props.IntProperty(name = '', default = 4, min = 1, max = 100, step = 1)
@@ -264,7 +264,9 @@ class EdgeRoundifier(bpy.types.Operator):
     fullCircles = bpy.props.BoolProperty(name = 'fullCircles', default = False)
     bothSides = bpy.props.BoolProperty(name = 'bothSides', default = False)
     removeDoubles = bpy.props.BoolProperty(name = 'removeDoubles', default = False)
+    drawArcCenters = bpy.props.BoolProperty(name = 'drawArcCenters', default = False)
     removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
+    removeScaledEdges = bpy.props.BoolProperty(name = 'removeScaledEdges', default = False)
     axisAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.5, precision = 1)
     offset = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
     offset2 = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
@@ -317,8 +319,8 @@ class EdgeRoundifier(bpy.types.Operator):
         return edges, mesh, bm
 
     def prepareParameters(self):
-
         parameters = { "a" : "a"}
+        parameters["edgeScaleFactor"] = self.edgeScaleFactor
         parameters["plane"] = self.planeEnum
         parameters["radius"] = self.r
         parameters["angle"] = self.a
@@ -331,7 +333,9 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["modeEnum"] = self.modeEnum
         parameters["refObject"] = self.referenceLocation
         parameters["removeDoubles"] = self.removeDoubles
+        parameters["drawArcCenters"] = self.drawArcCenters
         parameters["removeEdges"] = self.removeEdges
+        parameters["removeScaledEdges"] = self.removeScaledEdges
         parameters["axisAngle"] = self.axisAngle
         parameters["offset"] = self.offset
         parameters["offset2"] = self.offset2
@@ -341,9 +345,15 @@ class EdgeRoundifier(bpy.types.Operator):
         layout = self.layout
         layout.label('Note: possible radius >= edge_length/2.')
         row = layout.row(align = False)
+        #parameters["edgeScaleFactor"]
+        row.label('Edge Scale Factor:')
+        row.prop(self, 'edgeScaleFactor')
+        row = layout.row(align = False)
+
         row.label('Mode:')
         row.prop(self, 'modeEnum', expand = True, text = "a")
         row = layout.row(align = False)
+        
         layout.label('Quick angle:')
         layout.prop(self, 'angleEnum', expand = True, text = "abv")
         row = layout.row(align = False)
@@ -364,8 +374,11 @@ class EdgeRoundifier(bpy.types.Operator):
         row.prop(self, 'fullCircles')
         row.prop(self, 'bothSides' )
         row = layout.row(align = False)
+        row.prop(self, 'drawArcCenters')
         row.prop(self, 'removeDoubles')
+        row = layout.row(align = False)
         row.prop(self, 'removeEdges')
+        row.prop(self, 'removeScaledEdges')
 
         layout.label('Reference Location:')
         layout.prop(self, 'referenceLocation', expand = True, text = "a")
@@ -389,9 +402,13 @@ class EdgeRoundifier(bpy.types.Operator):
 
         edges, mesh, bm = self.prepareMesh(context)
         parameters = self.prepareParameters()
+        
+        #TODO
+        
+        scaledEdges = self.scaleDuplicatedEdges(bm, edges, parameters["edgeScaleFactor"])
 
-        if len(edges) > 0:
-            self.roundifyEdges(edges, parameters, bm, mesh)
+        if len(scaledEdges) > 0:
+            self.roundifyEdges(scaledEdges, parameters, bm, mesh)
             #PKHG sel is SelectionHelper print(type(self.sel),dir(self.sel))
             self.sel.refreshMesh(bm, mesh)
             if parameters["removeDoubles"] == True:
@@ -399,20 +416,41 @@ class EdgeRoundifier(bpy.types.Operator):
                 bpy.ops.mesh.remove_doubles(threshold = self.threshold)
                 bpy.ops.mesh.select_all(action = "DESELECT")
 
-            self.selectEdgesAfterRoundifier(context, edges)
+            self.selectEdgesAfterRoundifier(context, scaledEdges)
         else:
             debugPrint("No edges selected!")
 
         if parameters["removeEdges"]:
             bmesh.ops.delete(bm, geom = edges, context = 2)
-            bpy.ops.object.mode_set(mode = 'OBJECT')
-            bm.to_mesh(mesh)
-            bpy.ops.object.mode_set(mode = 'EDIT')
+        if parameters["removeScaledEdges"] and self.edgeScaleFactor != 1.0:    
+            bmesh.ops.delete(bm, geom = scaledEdges, context = 2)
+            
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        bm.to_mesh(mesh)
+        bpy.ops.object.mode_set(mode = 'EDIT')
 
         bm.free()
         return {'FINISHED'}
 
 ##########################################
+    
+    def scaleDuplicatedEdges(self,bm, edges, factor):
+        #this code is by Zeffi
+        duplicateEdges=[]
+        if factor == 1:
+            duplicateEdges = edges
+        else:
+            for e in edges:
+                v1 = e.verts[0].co
+                v2 = e.verts[1].co
+                origin = (v1+v2) * 0.5  # edge origin
+                bmv1 = bm.verts.new(((v1-origin) * factor) + origin)
+                bmv2 = bm.verts.new(((v2-origin) * factor) + origin)
+                bme = bm.edges.new([bmv1, bmv2])
+                duplicateEdges.append(bme)
+        return duplicateEdges
+        
+        
     def roundifyEdges(self, edges, parameters, bm, mesh):
         for e in edges:
             self.roundify(e, parameters, bm, mesh)
@@ -537,8 +575,11 @@ class EdgeRoundifier(bpy.types.Operator):
         radius = parameters["radius"]
 
         if radius < edgeLength/2:
-            radius = edgeLength/2
-            parameters["radius"] = edgeLength/2 
+#            return None
+            #radius = edgeLength/2
+            #parameters["radius"] = edgeLength/2 
+            self.r = edgeLength/2
+            parameters["radius"]=self.r
 
         angle = 0
         if (parameters["modeEnum"] == 'Angle'):
@@ -608,7 +649,8 @@ class EdgeRoundifier(bpy.types.Operator):
         
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
-
+        
+       
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
         vertsLength = len(bm.verts)
@@ -649,6 +691,7 @@ class EdgeRoundifier(bpy.types.Operator):
         elif (angle != two_pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
                 alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                ###
         #PKHG sel is SelectionHelper  print(type(self.sel),dir(self.sel))
         self.sel.refreshMesh(bm, mesh)
         if alternativeLastSpinVertIndices != []:
@@ -664,6 +707,8 @@ class EdgeRoundifier(bpy.types.Operator):
         if lastSpinVertIndices.stop == len(bm.verts): #make sure arc was added to bmesh
             spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
             spinVertices = [v0] + spinVertices
+        if parameters['drawArcCenters']: # TODO MORE TESTING - invert+ flip, hexagon
+            vX = bm.verts.new(chosenSpinCenter)
         return spinVertices
 
 ##########################################
@@ -692,6 +737,7 @@ class EdgeRoundifier(bpy.types.Operator):
                     space=bpy.context.edit_object.matrix_world
                     )
         self.sel.refreshMesh(bm, mesh)
+        bm.verts.ensure_lookup_table()
         rotatedVertices = [bm.verts[i] for i in indexes]
         
         return rotatedVertices
