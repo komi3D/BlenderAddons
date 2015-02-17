@@ -41,7 +41,7 @@ bl_info = {
 import bmesh
 import bpy
 import bpy.props
-from math import sqrt, acos, pi, radians, degrees, sin, acos
+from math import sqrt, acos, asin, pi, radians, degrees, sin, acos
 from mathutils import Vector, Euler
 
 # CONSTANTS
@@ -54,7 +54,7 @@ LINE_TOLERANCE = 0.0001
 
 # variable controlling all print functions
 #PKHG>??? to be replaced, see debugPrintNew ;-)
-debug = False
+debug = True
 
 def debugPrint(*text):
     if debug:
@@ -77,7 +77,7 @@ d_Plane = False
 d_Radius_Angle = False
 d_Roots = True
 d_RefObject = True
-d_LineAB = False
+d_LineAB = True
 d_Selected_edges = False
 d_Rotate_Around_Spin_Center = False
 ###################################################################################
@@ -271,16 +271,33 @@ class EdgeRoundifier(bpy.types.Operator):
     offset = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
     offset2 = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
     
-    modeItems = [('Radius', "Radius", ""), ("Angle", "Angle", "")]
-    modeEnum = bpy.props.EnumProperty(
-        items = modeItems,
+    entryModeItems = [("Radius", "Radius", ""), ("Angle", "Angle", "")]
+    entryMode = bpy.props.EnumProperty(
+        items = entryModeItems,
         name = '',
         default = 'Radius',
-        description = "Edge Roundifier mode")
+        description = "Edge Roundifier entry mode")
+    
+    arcModeItems = [("FullEdgeArc","Full","Full"),('HalfEdgeArc',"Half","Half")]
+    arcMode = bpy.props.EnumProperty(
+        items = arcModeItems,
+        name = '',
+        default = 'HalfEdgeArc',
+        description = "Edge Roundifier arc mode")
+    
 
     angleItems = [('Other', "Other", "User defined angle"), ('180', "180", "HemiCircle"), ('120', "120", "TriangleCircle"),
                     ('90', "90", "QuadCircle"), ('60', "60", "HexagonCircle"),
                     ('45', "45", "OctagonCircle"), ('30', "30", "12-gonCircle")]
+
+    angleItemsHalfMode = [('Other', "Other", "User defined angle"), ('90', "90", ""), ('60', "60", ""),
+                    ('45', "45", "OctagonCircle"), ('30', "30", "12-gonCircle")]
+
+    halfAngleEnum  = bpy.props.EnumProperty(
+        items = angleItemsHalfMode,
+        name = '',
+        default = 'Other',
+        description = "Presets prepare standard angles and calculate proper ray")
 
     angleEnum = bpy.props.EnumProperty(
         items = angleItems,
@@ -320,6 +337,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def prepareParameters(self):
         parameters = { "a" : "a"}
+        parameters["arcMode"] = self.arcMode
         parameters["edgeScaleFactor"] = self.edgeScaleFactor
         parameters["plane"] = self.planeEnum
         parameters["radius"] = self.r
@@ -330,7 +348,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["invertAngle"] = self.invertAngle
         parameters["bothSides"] = self.bothSides
         parameters["angleEnum"] = self.angleEnum
-        parameters["modeEnum"] = self.modeEnum
+        parameters["entryMode"] = self.entryMode
         parameters["refObject"] = self.referenceLocation
         parameters["removeDoubles"] = self.removeDoubles
         parameters["drawArcCenters"] = self.drawArcCenters
@@ -350,12 +368,20 @@ class EdgeRoundifier(bpy.types.Operator):
         row.prop(self, 'edgeScaleFactor')
         row = layout.row(align = False)
 
-        row.label('Mode:')
-        row.prop(self, 'modeEnum', expand = True, text = "a")
+        row.label('ArcMode:')
+        row.prop(self, 'arcMode', expand = True, text = "kind of arc to be created")
+        row = layout.row(align = False)
+        
+        
+        row.label('EntryMode:')
+        row.prop(self, 'entryMode', expand = True, text = "type of input given by user")
         row = layout.row(align = False)
         
         layout.label('Quick angle:')
-        layout.prop(self, 'angleEnum', expand = True, text = "abv")
+
+        layout.prop(self, 'angleEnum', expand = True, text = "angle presets")
+        ##layout.prop(self, angleEnumChoice, expand = True, text = "abv")
+        
         row = layout.row(align = False)
         row.label('Angle:')
         row.prop(self, 'a')
@@ -492,25 +518,36 @@ class EdgeRoundifier(bpy.types.Operator):
         if self.skipThisEdge(V1, V2, parameters["plane"]):
             return
 
-        roundifyParams = self.calculateRoundifyParams(edge, parameters, bm, mesh)
-        if roundifyParams == None:
-            return
-        #PKHG>TEST only once debugPrintNew(True, str(roundifyParams))
-        spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-        rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
-        offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
-        offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
         
         
-        if parameters["bothSides"]:
-            lastSpinCenter = roundifyParams[0]
-            roundifyParams[0] = roundifyParams[1]
-            roundifyParams[1] = lastSpinCenter
+
+        if parameters["arcMode"] == "HalfEdgeArc":
+            roundifyParams = self.calculateRoundifyParamsHalfMode(edge, parameters, bm, mesh)
+            if roundifyParams == None:
+                return
+            self.drawHalfSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+            
+        else:
+            #PKHG>TEST only once debugPrintNew(True, str(roundifyParams))
+            roundifyParams = self.calculateRoundifyParams(edge, parameters, bm, mesh)
+            if roundifyParams == None:
+                return
+                
             spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
             rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
             offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
             offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
-        
+            
+            
+            if parameters["bothSides"]:
+                lastSpinCenter = roundifyParams[0]
+                roundifyParams[0] = roundifyParams[1]
+                roundifyParams[1] = lastSpinCenter
+                spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+                rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+                offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+                offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
+            
 
     def offsetArcPerpendicular(self, bm, mesh, Verts, edge, parameters):
         perpendicularVector = self.getEdgePerpendicularVector(edge, parameters["plane"])
@@ -569,20 +606,21 @@ class EdgeRoundifier(bpy.types.Operator):
 
         debugPrintNew(d_Plane, "PLANE: " +  parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(edgeCenter, edgeVector, parameters["plane"])
+        #lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(V2, edgeVector, parameters["plane"])
         debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
         circleMidPoint = V1
         circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters["plane"])
         radius = parameters["radius"]
 
-        if radius < edgeLength/2:
+        #if radius < edgeLength/2:
 #            return None
             #radius = edgeLength/2
             #parameters["radius"] = edgeLength/2 
-            self.r = edgeLength/2
-            parameters["radius"]=self.r
+            #self.r = edgeLength/2
+            #parameters["radius"]=self.r
 
         angle = 0
-        if (parameters["modeEnum"] == 'Angle'):
+        if (parameters["entryMode"] == 'Angle'):
             if (parameters["angleEnum"] != 'Other'):
                 radius, angle = self.CalculateRadiusAndAngleForAnglePresets(parameters["angleEnum"], radius, angle, edgeLength)
             else:
@@ -614,7 +652,7 @@ class EdgeRoundifier(bpy.types.Operator):
         debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
         chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
 
-        if (parameters["modeEnum"] == "Radius"):
+        if (parameters["entryMode"] == "Radius"):
             halfAngle = self.calc.getAngle(edgeCenter, chosenSpinCenter, circleMidPoint)
             angle = 2 * halfAngle[0]  # in radians
             self.a = degrees(angle)  # in degrees
@@ -633,10 +671,88 @@ class EdgeRoundifier(bpy.types.Operator):
             angle = -angle
         X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
         return X
+    
+    #############################
 
+    def calculateRoundifyParamsHalfMode(self, edge, parameters, bm, mesh):
+        # V1 V2 stores Local Coordinates
+        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
 
+        debugPrintNew(d_Plane, "PLANE: " +  parameters["plane"])
+        lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(V2, edgeVector, parameters["plane"])
+        debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
+        circleMidPoint = V1
+        circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters["plane"])
+        circleMidPoint2 = V2
+        circleMidPointOnPlane2 = self.calc.getCircleMidPointOnPlane(V2, parameters["plane"])
+        radius = parameters["radius"]
 
+        angle = 0
+        if (parameters["entryMode"] == 'Angle'):
+            if (parameters["angleEnum"] != 'Other'):
+                radius, angle = self.CalculateRadiusAndAngleForAnglePresetsHalfMode(parameters["angleEnum"], edgeLength)
+            else:
+                radius, angle = self.CalculateRadiusFromAngleHalfMode(edgeLength)
+        else:
+            radius, angle = self.CalculateAngleFromRadiusHalfMode(edgeLength)
+        debugPrintNew(d_Radius_Angle, "RADIUS = " + str(radius) + "  ANGLE = " + str( angle))
+        roots = None
+        if angle != pi/2:  # mode other than 90
+            if lineAB == None:
+                roots = self.calc.getLineCircleIntersectionsWhenXPerpendicular(V2, circleMidPointOnPlane2, radius, parameters["plane"])
+            else:
+                roots = self.calc.getLineCircleIntersections(lineAB, circleMidPointOnPlane, radius)
+            if roots == None:
+                debugPrint("No centers were found. Change radius to higher value")
+                return None
+            roots = self.addMissingCoordinate(roots, V1, parameters["plane"])  # adds X, Y or Z coordinate
+        else:
+            roots = [V2, V2]
+        debugPrintNew(d_Roots, "roots=" + str(roots))
+
+        refObjectLocation = None
+        objectLocation = bpy.context.active_object.location  # Origin Location
+
+        if parameters["refObject"] == "ORG":
+            refObjectLocation = [0, 0, 0]
+            #refObjectLocation = objectLocation
+        else:
+            refObjectLocation = bpy.context.scene.cursor_location - objectLocation
+
+        debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
+        chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
+
+        spinAxis = self.getSpinAxis(parameters["plane"])
+
+        if(parameters["invertAngle"]):
+            angle = -two_pi + angle
+
+        if(parameters["fullCircles"]):
+            angle = two_pi
+
+        steps = parameters["segments"]
+
+        if parameters["fullCircles"] == False and parameters["flip"] == True:
+            angle = -angle
+        X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
+        return X
+
+    def drawHalfSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
+        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+
+        v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
+
+        # Duplicate initial vertex
+
+        v0 = bm.verts.new(v0org.co)
         
+        result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
+                                   angle = angle, steps = steps, use_duplicate = False)
+        if parameters['drawArcCenters']: 
+            vX = bm.verts.new(chosenSpinCenter)
+            vX2 = bm.verts.new(otherSpinCenter)
+       
+ ############################################################################       
         
     def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):       
         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
@@ -649,6 +765,7 @@ class EdgeRoundifier(bpy.types.Operator):
         
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
+
         
        
         # it seems there is something wrong with last index of this spin...
@@ -847,33 +964,57 @@ class EdgeRoundifier(bpy.types.Operator):
         self.r = radius = edgeLength / (2 * sin(angle / 2))
         return radius, angle
     
-    def CalculateRadiusAndAngleForAnglePresets(self, mode, initR, initA, edgeLength):
+    def CalculateRadiusAndAngleForAnglePresets(self, angleEnum, initR, initA, edgeLength):
         radius = initR
         angle = initA
 
-        if mode == "180":
-            radius = edgeLength / 2
-            angle = pi
-        elif mode == "120":
-            radius = edgeLength / 3 * sqrt(3)
-            angle = 2 * pi / 3
-        elif mode == "90":
-            radius = edgeLength / 2 * sqrt(2)
-            angle = pi / 2
-        elif mode == "60":
-            radius = edgeLength
-            angle = pi / 3
-        elif mode == "45":
-            radius = edgeLength / (2 * sin(pi / 8))
-            angle = pi / 4
-        elif mode == "30":
-            radius = edgeLength / (2 * sin(pi / 12))
-            angle = pi / 6
+        if angleEnum == "180":
+            self.a = 180
+        elif angleEnum == "120":
+            self.a = 120
+        elif angleEnum == "90":
+            self.a = 90
+        elif angleEnum == "60":
+            self.a = 60
+        elif angleEnum == "45":
+            self.a = 45
+        elif angleEnum == "30":
+            self.a = 30
+        return self.CalculateRadiusAndAngle(edgeLength)
+        
+    def CalculateRadiusAndAngleForAnglePresetsHalfMode(self, angleEnum, edgeLength):
+        if angleEnum == "90":
+            self.a = 90
+        elif angleEnum == "60":
+            self.a = 60
+        elif angleEnum == "45":
+            self.a = 45
+        elif angleEnum == "30":
+            self.a = 30
+        else:
+            self.a = 90    
+        return self.CalculateRadiusFromAngleHalfMode(edgeLength)
+        
+    def CalculateRadiusFromAngleHalfMode(self, edgeLength):
+        degAngle = self.a
+        if degAngle > 90:
+            degAngle = 90
+        angle = radians(degAngle)
+        radius = edgeLength / sin(angle)
         self.a = degrees(angle)
         self.r = radius
-        debugPrint ("mode output, radius = ", radius, "angle = ", angle)
         return radius, angle
 
+    def CalculateAngleFromRadiusHalfMode(self, edgeLength):
+        radius = self.r
+        if radius < edgeLength:
+            radius = edgeLength
+            self.r = radius
+        
+        angle = asin(edgeLength / radius)
+        self.a = degrees(angle)
+        return radius, angle
+                    
     def getSpinCenterClosestToRefCenter(self, objLocation, roots, flip):
         root0Distance = (Vector(objLocation) - Vector(roots[0])).length
         root1Distance = (Vector(objLocation) - Vector(roots[1])).length 
