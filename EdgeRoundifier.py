@@ -52,6 +52,7 @@ YZ = "YZ"
 SPIN_END_THRESHOLD = 0.001
 LINE_TOLERANCE = 0.0001
 
+
 # variable controlling all print functions
 #PKHG>??? to be replaced, see debugPrintNew ;-)
 debug = True
@@ -74,7 +75,7 @@ def debugPrintNew(debug,*text):
 d_XABS_YABS = False
 d_Edge_Info = False
 d_Plane = False
-d_Radius_Angle = False
+d_Radius_Angle = True
 d_Roots = True
 d_RefObject = True
 d_LineAB = True
@@ -183,6 +184,8 @@ class CalculationHelper:
         if roots != None:
             y1 = roots[0]
             y2 = roots[1]
+#             y1 = roots[1]
+#             y2 = roots[0]
             point1 = [xValue, y1]
             point2 = [xValue, y2]
             return [point1, point2]
@@ -253,8 +256,8 @@ class EdgeRoundifier(bpy.types.Operator):
     bl_label = "Edge Roundifier"  # display name in the interface.
     bl_options = {'REGISTER', 'UNDO', 'PRESET'}  # enable undo for the operator.PKHG>INFO and PRESET
 
-    threshold = 0.0005  # used for remove doubles and edge selection at the end
-
+    threshold = 0.0005
+    
     edgeScaleFactor = bpy.props.FloatProperty(name = '', default = 1.0, min = 0.00001, max = 100000.0, step = 0.5, precision = 5)
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
     a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.5, precision = 1)
@@ -263,7 +266,7 @@ class EdgeRoundifier(bpy.types.Operator):
     invertAngle = bpy.props.BoolProperty(name = 'invertAngle', default = False)
     fullCircles = bpy.props.BoolProperty(name = 'fullCircles', default = False)
     bothSides = bpy.props.BoolProperty(name = 'bothSides', default = False)
-    removeDoubles = bpy.props.BoolProperty(name = 'removeDoubles', default = False)
+    flipStartVertex = bpy.props.BoolProperty(name = 'flipStartVertex', default = False)
     drawArcCenters = bpy.props.BoolProperty(name = 'drawArcCenters', default = False)
     removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
     removeScaledEdges = bpy.props.BoolProperty(name = 'removeScaledEdges', default = False)
@@ -350,7 +353,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["angleEnum"] = self.angleEnum
         parameters["entryMode"] = self.entryMode
         parameters["refObject"] = self.referenceLocation
-        parameters["removeDoubles"] = self.removeDoubles
+        parameters["flipStartVertex"] = self.flipStartVertex
         parameters["drawArcCenters"] = self.drawArcCenters
         parameters["removeEdges"] = self.removeEdges
         parameters["removeScaledEdges"] = self.removeScaledEdges
@@ -361,7 +364,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        layout.label('Note: possible radius >= edge_length/2.')
+        layout.label('Note FULL: r >= edge/2, HALF: r >= edge')
         row = layout.row(align = False)
         #parameters["edgeScaleFactor"]
         row.label('Edge Scale Factor:')
@@ -376,6 +379,8 @@ class EdgeRoundifier(bpy.types.Operator):
         row.label('EntryMode:')
         row.prop(self, 'entryMode', expand = True, text = "type of input given by user")
         row = layout.row(align = False)
+        
+        self.layout.separator()
         
         layout.label('Quick angle:')
 
@@ -397,11 +402,11 @@ class EdgeRoundifier(bpy.types.Operator):
         row.prop(self, 'flip')
         row.prop(self, 'invertAngle')
         row = layout.row(align = False)
-        row.prop(self, 'fullCircles')
+        row.prop(self, 'flipStartVertex')
         row.prop(self, 'bothSides' )
         row = layout.row(align = False)
+        row.prop(self, 'fullCircles')
         row.prop(self, 'drawArcCenters')
-        row.prop(self, 'removeDoubles')
         row = layout.row(align = False)
         row.prop(self, 'removeEdges')
         row.prop(self, 'removeScaledEdges')
@@ -411,9 +416,9 @@ class EdgeRoundifier(bpy.types.Operator):
 
         layout.label('Working Plane (LOCAL coordinates):')
         layout.prop(self, 'planeEnum', expand = True, text = "a")
-
-        row = layout.row(align = False)
-        row.label('=== EXTRA OPTIONS ===')
+        
+        self.layout.separator()
+        
         row = layout.row(align = False)
         row.label('Rotation around axis angle:')
         row.prop(self,'axisAngle')
@@ -435,13 +440,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if len(scaledEdges) > 0:
             self.roundifyEdges(scaledEdges, parameters, bm, mesh)
-            #PKHG sel is SelectionHelper print(type(self.sel),dir(self.sel))
             self.sel.refreshMesh(bm, mesh)
-            if parameters["removeDoubles"] == True:
-                bpy.ops.mesh.select_all(action = "SELECT")
-                bpy.ops.mesh.remove_doubles(threshold = self.threshold)
-                bpy.ops.mesh.select_all(action = "DESELECT")
-
             self.selectEdgesAfterRoundifier(context, scaledEdges)
         else:
             debugPrint("No edges selected!")
@@ -533,21 +532,21 @@ class EdgeRoundifier(bpy.types.Operator):
             if roundifyParams == None:
                 return
                 
-            spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-            rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
-            offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
-            offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
-            
+            spinnedVerts = self.drawSpin2(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+#             rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+#             offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+#             offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
+#             
             
             if parameters["bothSides"]:
                 lastSpinCenter = roundifyParams[0]
                 roundifyParams[0] = roundifyParams[1]
                 roundifyParams[1] = lastSpinCenter
-                spinnedVerts = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-                rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
-                offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
-                offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
-            
+                spinnedVerts = self.drawSpin2(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+#                 rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+#                 offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+#                 offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
+#             
 
     def offsetArcPerpendicular(self, bm, mesh, Verts, edge, parameters):
         perpendicularVector = self.getEdgePerpendicularVector(edge, parameters["plane"])
@@ -677,14 +676,18 @@ class EdgeRoundifier(bpy.types.Operator):
     def calculateRoundifyParamsHalfMode(self, edge, parameters, bm, mesh):
         # V1 V2 stores Local Coordinates
         V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
+        
+        primaryVertex = V1
+        secondaryVertex = V2
+        if parameters["flipStartVertex"] == True:
+            primaryVertex = V2
+            secondaryVertex = V1
 
         debugPrintNew(d_Plane, "PLANE: " +  parameters["plane"])
-        lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(V2, edgeVector, parameters["plane"])
+        lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(secondaryVertex, edgeVector, parameters["plane"])
         debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
-        circleMidPoint = V1
-        circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters["plane"])
-        circleMidPoint2 = V2
-        circleMidPointOnPlane2 = self.calc.getCircleMidPointOnPlane(V2, parameters["plane"])
+        circleMidPoint = primaryVertex
+        circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(primaryVertex, parameters["plane"])
         radius = parameters["radius"]
 
         angle = 0
@@ -699,15 +702,15 @@ class EdgeRoundifier(bpy.types.Operator):
         roots = None
         if angle != pi/2:  # mode other than 90
             if lineAB == None:
-                roots = self.calc.getLineCircleIntersectionsWhenXPerpendicular(V2, circleMidPointOnPlane2, radius, parameters["plane"])
+                roots = self.calc.getLineCircleIntersectionsWhenXPerpendicular(secondaryVertex, circleMidPointOnPlane, radius, parameters["plane"])
             else:
                 roots = self.calc.getLineCircleIntersections(lineAB, circleMidPointOnPlane, radius)
             if roots == None:
                 debugPrint("No centers were found. Change radius to higher value")
                 return None
-            roots = self.addMissingCoordinate(roots, V1, parameters["plane"])  # adds X, Y or Z coordinate
+            roots = self.addMissingCoordinate(roots, primaryVertex, parameters["plane"])  # adds X, Y or Z coordinate
         else:
-            roots = [V2, V2]
+            roots = [secondaryVertex, secondaryVertex]
         debugPrintNew(d_Roots, "roots=" + str(roots))
 
         refObjectLocation = None
@@ -744,15 +747,36 @@ class EdgeRoundifier(bpy.types.Operator):
 
         # Duplicate initial vertex
 
-        v0 = bm.verts.new(v0org.co)
-        
+        v0 = None
+        if parameters["flipStartVertex"] == False:
+            v0 = bm.verts.new(v0org.co)
+        else:
+            v0 = bm.verts.new(v1org.co)
+            #angle = -angle
+            
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
         if parameters['drawArcCenters']: 
             vX = bm.verts.new(chosenSpinCenter)
-            vX2 = bm.verts.new(otherSpinCenter)
        
  ############################################################################       
+    def drawSpin2(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):       
+        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+
+        v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
+
+        # Duplicate initial vertex
+
+        v0 = None
+        if parameters["flipStartVertex"] == False:
+            v0 = bm.verts.new(v0org.co)
+        else:
+            v0 = bm.verts.new(v1org.co)
+            #angle = -angle
+        
+        result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
+                                   angle = angle, steps = steps, use_duplicate = False)
+
         
     def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):       
         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
