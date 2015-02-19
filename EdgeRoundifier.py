@@ -264,9 +264,10 @@ class EdgeRoundifier(bpy.types.Operator):
     n = bpy.props.IntProperty(name = '', default = 4, min = 1, max = 100, step = 1)
     flip = bpy.props.BoolProperty(name = 'flip', default = False)
     invertAngle = bpy.props.BoolProperty(name = 'invertAngle', default = False)
+    flipCenter= bpy.props.BoolProperty(name = 'flipCenter', default = False)
     fullCircles = bpy.props.BoolProperty(name = 'fullCircles', default = False)
     bothSides = bpy.props.BoolProperty(name = 'bothSides', default = False)
-    flipStartVertex = bpy.props.BoolProperty(name = 'flipStartVertex', default = False)
+    flipVertex = bpy.props.BoolProperty(name = 'flipVertex', default = False)
     drawArcCenters = bpy.props.BoolProperty(name = 'drawArcCenters', default = False)
     removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
     removeScaledEdges = bpy.props.BoolProperty(name = 'removeScaledEdges', default = False)
@@ -347,13 +348,14 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["angle"] = self.a
         parameters["segments"] = self.n
         parameters["flip"] = self.flip
+        parameters["flipCenter"] = self.flipCenter
         parameters["fullCircles"] = self.fullCircles
         parameters["invertAngle"] = self.invertAngle
         parameters["bothSides"] = self.bothSides
         parameters["angleEnum"] = self.angleEnum
         parameters["entryMode"] = self.entryMode
         parameters["refObject"] = self.referenceLocation
-        parameters["flipStartVertex"] = self.flipStartVertex
+        parameters["flipVertex"] = self.flipVertex
         parameters["drawArcCenters"] = self.drawArcCenters
         parameters["removeEdges"] = self.removeEdges
         parameters["removeScaledEdges"] = self.removeScaledEdges
@@ -399,15 +401,17 @@ class EdgeRoundifier(bpy.types.Operator):
         #PKHG>INFO dragging still works but changing 1 easier
         #komi3D > thanks for pointing that out! :)
         row = layout.row(align = False)
+        row.prop(self, 'flipVertex')
+        row.prop(self, 'flipCenter')
         row.prop(self, 'flip')
+        
+        row = layout.row(align = False)
         row.prop(self, 'invertAngle')
-        row = layout.row(align = False)
-        row.prop(self, 'flipStartVertex')
         row.prop(self, 'bothSides' )
-        row = layout.row(align = False)
         row.prop(self, 'fullCircles')
-        row.prop(self, 'drawArcCenters')
+
         row = layout.row(align = False)
+        row.prop(self, 'drawArcCenters')
         row.prop(self, 'removeEdges')
         row.prop(self, 'removeScaledEdges')
 
@@ -524,7 +528,7 @@ class EdgeRoundifier(bpy.types.Operator):
             roundifyParams = self.calculateRoundifyParamsHalfMode(edge, parameters, bm, mesh)
             if roundifyParams == None:
                 return
-            self.drawHalfSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+            self.drawSpinHalf(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
             
         else:
             #PKHG>TEST only once debugPrintNew(True, str(roundifyParams))
@@ -657,14 +661,12 @@ class EdgeRoundifier(bpy.types.Operator):
             self.a = degrees(angle)  # in degrees
 
         spinAxis = self.getSpinAxis(parameters["plane"])
-
+        steps = parameters["segments"]
         if(parameters["invertAngle"]):
             angle = -two_pi + angle
 
         if(parameters["fullCircles"]):
             angle = two_pi
-
-        steps = parameters["segments"]
 
         if parameters["fullCircles"] == False and parameters["flip"] == True:
             angle = -angle
@@ -679,7 +681,7 @@ class EdgeRoundifier(bpy.types.Operator):
         
         primaryVertex = V1
         secondaryVertex = V2
-        if parameters["flipStartVertex"] == True:
+        if parameters["flipVertex"] == True:
             primaryVertex = V2
             secondaryVertex = V1
 
@@ -724,40 +726,46 @@ class EdgeRoundifier(bpy.types.Operator):
 
         debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
         chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots, parameters["flip"])
-
+        #chosenSpinCenter, otherSpinCenter = roots
         spinAxis = self.getSpinAxis(parameters["plane"])
 
+        steps = parameters["segments"]
+        
+        X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
+        return X
+
+    def drawSpinHalf(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
+        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+
+        v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
+
+        spinCenter = chosenSpinCenter
+         # Duplicate initial vertex 
+        v0 = None
+        if parameters["flipVertex"] == False:
+            v0 = bm.verts.new(v0org.co)
+        else:
+            v0 = bm.verts.new(v1org.co)
+            #angle = -angle
+            
         if(parameters["invertAngle"]):
             angle = -two_pi + angle
 
         if(parameters["fullCircles"]):
             angle = two_pi
 
-        steps = parameters["segments"]
-
-        if parameters["fullCircles"] == False and parameters["flip"] == True:
+        if parameters["flip"] == True:
             angle = -angle
-        X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
-        return X
+        
+        if parameters["flipCenter"] == True:
+            spinCenter = otherSpinCenter
 
-    def drawHalfSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
-        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
-
-        v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
-
-        # Duplicate initial vertex
-
-        v0 = None
-        if parameters["flipStartVertex"] == False:
-            v0 = bm.verts.new(v0org.co)
-        else:
-            v0 = bm.verts.new(v1org.co)
-            #angle = -angle
             
-        result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
+        result = bmesh.ops.spin(bm, geom = [v0], cent = spinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
         if parameters['drawArcCenters']: 
             vX = bm.verts.new(chosenSpinCenter)
+            vX2 = bm.verts.new(otherSpinCenter)
        
  ############################################################################       
     def drawSpin2(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):       
@@ -768,7 +776,7 @@ class EdgeRoundifier(bpy.types.Operator):
         # Duplicate initial vertex
 
         v0 = None
-        if parameters["flipStartVertex"] == False:
+        if parameters["flipVertex"] == False:
             v0 = bm.verts.new(v0org.co)
         else:
             v0 = bm.verts.new(v1org.co)
@@ -778,7 +786,7 @@ class EdgeRoundifier(bpy.types.Operator):
                                    angle = angle, steps = steps, use_duplicate = False)
 
         
-    def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):       
+    def drawSpinOLD(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):       
         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
 
         v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
