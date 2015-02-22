@@ -538,15 +538,15 @@ class EdgeRoundifier(bpy.types.Operator):
             self.spinAndPostprocess(edge, parameters, bm, mesh, edgeCenter, roundifyParams, True)
                  
     def spinAndPostprocess(self, edge, parameters, bm, mesh, edgeCenter, roundifyParams, switchInitialVertex):
-        spinnedVerts = self.drawSpin2(edge, edgeCenter, roundifyParams, parameters, bm, mesh, switchInitialVertex)
-        self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParams, spinnedVerts)
+        spinnedVerts,roundifyParamsUpdated = self.drawSpin2(edge, edgeCenter, roundifyParams, parameters, bm, mesh, switchInitialVertex)
+        self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParamsUpdated, spinnedVerts)
         if parameters["bothSides"]: #switch arc center and angle
             lastSpinCenter = roundifyParams[0]
             roundifyParams[0] = roundifyParams[1]
             roundifyParams[1] = lastSpinCenter
             roundifyParams[3] = -roundifyParams[3]
-            spinnedVerts = self.drawSpin2(edge, edgeCenter, roundifyParams, parameters, bm, mesh, switchInitialVertex)
-            self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParams, spinnedVerts)
+            spinnedVerts,roundifyParamsUpdated2 = self.drawSpin2(edge, edgeCenter, roundifyParams, parameters, bm, mesh, switchInitialVertex)
+            self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParamsUpdated2, spinnedVerts)
 
     def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts):
         rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
@@ -786,8 +786,10 @@ class EdgeRoundifier(bpy.types.Operator):
         if(parameters["fullCircles"]):
             angle = two_pi
         spinCenter = chosenSpinCenter
+        spinCenter2 = otherSpinCenter
         if parameters["flipCenter"] == True:
             spinCenter = otherSpinCenter
+            spinCenter2 = chosenSpinCenter
 
         if parameters["fullCircles"] == False and parameters["minusAngle"] == True:
             angle = -angle
@@ -799,6 +801,7 @@ class EdgeRoundifier(bpy.types.Operator):
             vX = bm.verts.new(spinCenter)
             steps = steps + 1 #to compensate added vertex for arc center
             
+            
         vertsLength = len(bm.verts)
         bm.verts.ensure_lookup_table()
         lastVertIndex = bm.verts[vertsLength - 1].index
@@ -806,10 +809,10 @@ class EdgeRoundifier(bpy.types.Operator):
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
         
         spinVertices = []
-        if lastSpinVertIndices.stop == len(bm.verts): #make sure arc was added to bmesh
+        if lastSpinVertIndices.stop <= len(bm.verts): #make sure arc was added to bmesh
             spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
             spinVertices = [v0] + spinVertices
-        return spinVertices
+        return spinVertices,[spinCenter, spinCenter2, spinAxis, angle, steps, refObjectLocation]
         
         
         
