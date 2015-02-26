@@ -262,26 +262,27 @@ class EdgeRoundifier(bpy.types.Operator):
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
     a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.5, precision = 1)
     n = bpy.props.IntProperty(name = '', default = 4, min = 1, max = 100, step = 1)
-    minusAngle = bpy.props.BoolProperty(name = 'minusAngle', default = False)
-    invertAngle = bpy.props.BoolProperty(name = 'invertAngle', default = False)
-    flipCenter= bpy.props.BoolProperty(name = 'flipCenter', default = False)
-    fullCircles = bpy.props.BoolProperty(name = 'fullCircles', default = False)
-    bothSides = bpy.props.BoolProperty(name = 'bothSides', default = False)
-    flipVertex = bpy.props.BoolProperty(name = 'flipVertex', default = False)
-    drawArcCenters = bpy.props.BoolProperty(name = 'drawArcCenters', default = False)
-    removeEdges = bpy.props.BoolProperty(name = 'removeEdges', default = False)
-    removeScaledEdges = bpy.props.BoolProperty(name = 'removeScaledEdges', default = False)
+    flipVertex = bpy.props.BoolProperty(name = 'Vertex', default = False)
+    flipCenter= bpy.props.BoolProperty(name = 'Center', default = False)
+    minusAngle = bpy.props.BoolProperty(name = 'Angle', default = False)
     
-    connectArcWithEdge = bpy.props.BoolProperty(name = 'connectArcWithEdge', default = False)
+    invertAngle = bpy.props.BoolProperty(name = 'Invert Angle', default = False)
+    fullCircles = bpy.props.BoolProperty(name = 'Circles', default = False)
+    bothSides = bpy.props.BoolProperty(name = 'Both Sides', default = False)
     
-    #connectScaledAndBase = bpy.props.BoolProperty(name = 'connectScaledAndBase', default = False)
-    #connectArcs = bpy.props.BoolProperty(name = 'connectArcs', default = False)
+    drawArcCenters = bpy.props.BoolProperty(name = 'Draw Centers', default = False)
+    removeEdges = bpy.props.BoolProperty(name = 'Drop Edges', default = False)
+    removeScaledEdges = bpy.props.BoolProperty(name = 'Drop Scaled', default = False)
     
-    XYZ = bpy.props.BoolProperty(name = 'XYZ', default = False)
-    connectArcs = bpy.props.BoolProperty(name = 'connectArcs', default = False)
-    connectScaledAndBase = bpy.props.BoolProperty(name = 'connectScaledAndBase', default = False)
+    connectArcWithEdge = bpy.props.BoolProperty(name = 'Arc - Edge', default = False)
+    connectArcs = bpy.props.BoolProperty(name = 'Arcs', default = False)
+    connectScaledAndBase = bpy.props.BoolProperty(name = 'Scaled - Base Edge', default = False)
+    connectArcsFlip = bpy.props.BoolProperty(name = 'Flip Arcs', default = False)
+    connectArcWithEdgeFlip = bpy.props.BoolProperty(name = 'Flip Arc - Edge', default = False)
+    
     
     axisAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.5, precision = 1)
+    edgeAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.5, precision = 1)
     offset = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
     offset2 = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
     
@@ -372,85 +373,103 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["connectArcWithEdge"] = self.connectArcWithEdge
         parameters["connectScaledAndBase"] = self.connectScaledAndBase
         parameters["connectArcs"] = self.connectArcs
+        parameters["connectArcsFlip"] = self.connectArcsFlip
+        parameters["connectArcWithEdgeFlip"] = self.connectArcWithEdgeFlip
         parameters["axisAngle"] = self.axisAngle
+        parameters["edgeAngle"] = self.edgeAngle
         parameters["offset"] = self.offset
         parameters["offset2"] = self.offset2
         return parameters
 
     def draw(self, context):
         layout = self.layout
-        layout.label('Note FULL: r >= edge/2, HALF: r >= edge')
-        row = layout.row(align = False)
-        row.label('Edge Scale Factor:')
-        row.prop(self, 'edgeScaleFactor')
-        row = layout.row(align = False)
-
+        box = layout.box()
+        row = box.row (align = False)
+        row.label('Working Plane:')
+        row.prop(self, 'planeEnum', expand = True, text = "a")
+        
+        row = box.row (align = False)
         row.label('ArcMode:')
         row.prop(self, 'arcMode', expand = True, text = "kind of arc to be created")
-        row = layout.row(align = False)
-        
-        
+
+        row = box.row (align = False)
         row.label('EntryMode:')
         row.prop(self, 'entryMode', expand = True, text = "type of input given by user")
-        row = layout.row(align = False)
-        
-        self.layout.separator()
-        
-        layout.label('Quick angle:')
 
-        layout.prop(self, 'angleEnum', expand = True, text = "angle presets")
-        ##layout.prop(self, angleEnumChoice, expand = True, text = "abv")
+        row = box.row (align = False)
+        row.label('Reference Location:')
+        row.prop(self, 'referenceLocation', expand = True, text = "a")
+
+        box = layout.box()
+        row = box.row (align = False)
+        row.label('Quick angle:')
+        row.prop(self, 'angleEnum', expand = True, text = "angle presets")
         
-        row = layout.row(align = False)
+        
+        row = box.row (align = False)
         row.label('Angle:')
         row.prop(self, 'a')
-        row = layout.row(align = False)
+        row = box.row (align = False)
         row.label('Radius:')
         row.prop(self, 'r')
-        row = layout.row(align = True)
+        
+        row = box.row (align = False)
         row.label('Segments:')
-        row.prop(self, 'n') #old , slider = True) 
+        row.prop(self, 'n') #old , slider = True)
+        row = box.row (align = False)
+        row.label('Edge Scale Factor:')
+        row.prop(self, 'edgeScaleFactor')
+ 
         #PKHG>INFO dragging still works but changing 1 easier
         #komi3D > thanks for pointing that out! :)
-        row = layout.row(align = False)
+
+        box = layout.box()
+        row = box.row (align = False)
+        row.label('Flip:')
         row.prop(self, 'flipVertex')
         row.prop(self, 'flipCenter')
         row.prop(self, 'minusAngle')
         
-        row = layout.row(align = False)
+        box = layout.box()
+        row = box.row (align = False)
+        row.label('Connect:')
+        row.prop(self, 'connectArcs')
+        row.prop(self, 'connectArcWithEdge')
+        row.prop(self, 'connectScaledAndBase')
+        row = box.row (align = False)
+        row.label('')
+        row.prop(self, 'connectArcsFlip')
+        row.prop(self, 'connectArcWithEdgeFlip')
+        row.label('')
+                
+        box = layout.box()
+        row = box.row (align = False)
+        row.label('Options:')
         row.prop(self, 'invertAngle')
         row.prop(self, 'bothSides' )
-        row.prop(self, 'fullCircles')
-
-        row = layout.row(align = False)
-        row.prop(self, 'connectArcWithEdge')
-        row.prop(self, 'connectArcs')
-        row.prop(self, 'connectScaledAndBase')
-                
-        row = layout.row(align = False)
-        row.prop(self, 'drawArcCenters')
         row.prop(self, 'removeEdges')
+
+
+        row = box.row (align = False)
+        #row = layout.row(align = False)
+        row.label('')
+        row.prop(self, 'drawArcCenters')
+        row.prop(self, 'fullCircles')
         row.prop(self, 'removeScaledEdges')
-        
 
-
-        layout.label('Reference Location:')
-        layout.prop(self, 'referenceLocation', expand = True, text = "a")
-
-        layout.label('Working Plane (LOCAL coordinates):')
-        layout.prop(self, 'planeEnum', expand = True, text = "a")
-        
-        self.layout.separator()
-        
-        row = layout.row(align = False)
+        box = layout.box()
+        row = box.row (align = False)
+        row.label('Orhto Offset:')
+        row.prop(self,'offset')
+        row = box.row (align = False)
+        row.label('Parallel Offset:')
+        row.prop(self,'offset2')
+        row = box.row (align = False)
         row.label('Rotation around axis angle:')
         row.prop(self,'axisAngle')
-        row = layout.row(align = False)
-        row.label('Orhto Offset arc:')
-        row.prop(self,'offset')
-        row = layout.row(align = False)
-        row.label('Parallel Offset arc:')
-        row.prop(self,'offset2')
+        row = box.row (align = False)
+        row.label('Rotation around edge angle:')
+        row.prop(self,'edgeAngle')
 
     def execute(self, context):
 
@@ -508,7 +527,7 @@ class EdgeRoundifier(bpy.types.Operator):
             arcs.append(arcVerts)
 
         if parameters["connectArcs"]: 
-            self.connectArcsTogether(arcs, bm, mesh)
+            self.connectArcsTogether(arcs, bm, mesh, parameters)
 
     def getNormalizedEdgeVector (self, edge):
         V1 = edge.verts[0].co 
@@ -583,23 +602,30 @@ class EdgeRoundifier(bpy.types.Operator):
         offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
 
         if parameters["connectArcWithEdge"]:
-            self.connectArcTogetherWithEdge(edge,offsetVerts2,bm,mesh)
+            self.connectArcTogetherWithEdge(edge,offsetVerts2,bm,mesh, parameters)
         return offsetVerts2
         
-    def connectArcTogetherWithEdge(self, edge, arcVertices, bm, mesh):
+    def connectArcTogetherWithEdge(self, edge, arcVertices, bm, mesh, parameters):
+        lastVert = len(arcVertices) - 1
+        if parameters["drawArcCenters"]:
+            lastVert = lastVert - 1 #center gets added as last vert of arc    
         edgeV1 = edge.verts[0].co
-        arcV1 = arcVertices[0].co
         edgeV2 = edge.verts[1].co
-        arcV2 = arcVertices[len(arcVertices)-1].co
+        arcV1 = arcVertices[0].co
+        arcV2 = arcVertices[lastVert].co
         
         bmv1 = bm.verts.new(edgeV1)
         bmv2 = bm.verts.new(arcV1)
-        bme = bm.edges.new([bmv1, bmv2])
-        
         
         bmv3 = bm.verts.new(edgeV2)
         bmv4 = bm.verts.new(arcV2)
-        bme = bm.edges.new([bmv3, bmv4])
+        
+        if parameters["connectArcWithEdgeFlip"] == False: 
+            bme = bm.edges.new([bmv1, bmv2])
+            bme2 = bm.edges.new([bmv3, bmv4])
+        else:
+            bme = bm.edges.new([bmv1, bmv4])
+            bme2 = bm.edges.new([bmv3, bmv2])
         self.sel.refreshMesh(bm, mesh)
         
     def connectScaledEdgesWithBaseEdge(self, scaledEdges, baseEdges, bm, mesh):
@@ -619,24 +645,38 @@ class EdgeRoundifier(bpy.types.Operator):
             bme = bm.edges.new([bmv3, bmv4])
         self.sel.refreshMesh(bm, mesh)
             
-    def connectArcsTogether(self, arcs, bm, mesh):
+    def connectArcsTogether(self, arcs, bm, mesh, parameters):
+        
         for i in range(0, len(arcs)-1):
+        
+            lastVert = len(arcs[i])-1
+            if parameters["drawArcCenters"]:
+                lastVert = lastVert - 1 #center gets added as last vert of arc    
             #take last vert of arc i and first vert of arc i+1
-            arcA_V2 = arcs[i][len(arcs[i])-1].co
-            arcB_V1 = arcs[i+1][0].co
+            V1 = arcs[i][lastVert].co
+            V2 = arcs[i+1][0].co
             
-            bmv1 = bm.verts.new(arcA_V2)
-            bmv2 = bm.verts.new(arcB_V1)
+            if parameters["connectArcsFlip"]:
+                V1 = arcs[i][0].co
+                V2 = arcs[i+1][lastVert].co
+            
+            bmv1 = bm.verts.new(V1)
+            bmv2 = bm.verts.new(V2)
             bme = bm.edges.new([bmv1, bmv2])
         
         #connect last arc and first one
         lastArcId = len(arcs)-1
         lastVertIdOfLastArc = len(arcs[lastArcId])-1
-        arcB_V2 = arcs[lastArcId][lastVertIdOfLastArc].co
-        arcA_V1 = arcs[0][0].co
+        if parameters["drawArcCenters"]:
+                lastVertIdOfLastArc = lastVertIdOfLastArc - 1 #center gets added as last vert of arc   
+        V1 = arcs[lastArcId][lastVertIdOfLastArc].co
+        V2 = arcs[0][0].co
+        if parameters["connectArcsFlip"]:
+                V1 = arcs[lastArcId][0].co
+                V2 = arcs[0][lastVertIdOfLastArc].co
 
-        bmv1 = bm.verts.new(arcB_V2)
-        bmv2 = bm.verts.new(arcA_V1)
+        bmv1 = bm.verts.new(V1)
+        bmv2 = bm.verts.new(V2)
         bme = bm.edges.new([bmv1, bmv2])
                     
         self.sel.refreshMesh(bm, mesh)
