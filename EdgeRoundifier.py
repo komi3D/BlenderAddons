@@ -305,15 +305,6 @@ class EdgeRoundifier(bpy.types.Operator):
                     ('90', "90", "QuadCircle"), ('60', "60", "HexagonCircle"),
                     ('45', "45", "OctagonCircle"), ('30', "30", "12-gonCircle")]
 
-    angleItemsHalfMode = [('Other', "Other", "User defined angle"), ('90', "90", ""), ('60', "60", ""),
-                    ('45', "45", "OctagonCircle"), ('30', "30", "12-gonCircle")]
-
-    halfAngleEnum  = bpy.props.EnumProperty(
-        items = angleItemsHalfMode,
-        name = '',
-        default = 'Other',
-        description = "Presets prepare standard angles and calculate proper ray")
-
     angleEnum = bpy.props.EnumProperty(
         items = angleItems,
         name = '',
@@ -334,6 +325,12 @@ class EdgeRoundifier(bpy.types.Operator):
         default = 'XY',
         description = "Plane used by Edge Roundifier to calculate spin plane of drawn arcs")
 
+    edgeScaleCenterItems = [('V1', "Vertex 1", "v1"), ('CENTER', "Center", "cent"), ('V2', "Vertex 2", "v2")]
+    edgeScaleCenterEnum = bpy.props.EnumProperty(
+        items = edgeScaleCenterItems,
+        name = 'edge scale center',
+        default = 'CENTER',
+        description = "Center used for scaling initial edge")
 
     calc = CalculationHelper()
     sel = SelectionHelper()
@@ -354,6 +351,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters = { "a" : "a"}
         parameters["arcMode"] = self.arcMode
         parameters["edgeScaleFactor"] = self.edgeScaleFactor
+        parameters["edgeScaleCenterEnum"] = self.edgeScaleCenterEnum
         parameters["plane"] = self.planeEnum
         parameters["radius"] = self.r
         parameters["angle"] = self.a
@@ -416,9 +414,15 @@ class EdgeRoundifier(bpy.types.Operator):
         row = box.row (align = False)
         row.label('Segments:')
         row.prop(self, 'n') #old , slider = True)
+        
+        box = layout.box()
         row = box.row (align = False)
         row.label('Edge Scale Factor:')
         row.prop(self, 'edgeScaleFactor')
+        row = box.row (align = False)
+        row.label('Scale Center:')
+        row.prop(self, 'edgeScaleCenterEnum', expand = True, text = "edgeScaleCenter")
+        
  
         #PKHG>INFO dragging still works but changing 1 easier
         #komi3D > thanks for pointing that out! :)
@@ -476,7 +480,7 @@ class EdgeRoundifier(bpy.types.Operator):
         edges, mesh, bm = self.prepareMesh(context)
         parameters = self.prepareParameters()
         
-        scaledEdges = self.scaleDuplicatedEdges(bm, edges, parameters["edgeScaleFactor"])
+        scaledEdges = self.scaleDuplicatedEdges(bm, edges, parameters)
 
         if len(scaledEdges) > 0:
             self.roundifyEdges(scaledEdges, parameters, bm, mesh)
@@ -503,8 +507,10 @@ class EdgeRoundifier(bpy.types.Operator):
 
 ##########################################
     
-    def scaleDuplicatedEdges(self,bm, edges, factor):
-        #this code is by Zeffi
+    def scaleDuplicatedEdges(self,bm, edges, parameters):
+        scaleCenter = parameters["edgeScaleCenterEnum"]
+        factor = parameters["edgeScaleFactor"]
+        #this code is based on Zeffi's answer to my question
         duplicateEdges=[]
         if factor == 1:
             duplicateEdges = edges
@@ -512,7 +518,14 @@ class EdgeRoundifier(bpy.types.Operator):
             for e in edges:
                 v1 = e.verts[0].co
                 v2 = e.verts[1].co
-                origin = (v1+v2) * 0.5  # edge origin
+                origin = None
+                if scaleCenter == 'CENTER':
+                    origin = (v1+v2) * 0.5  
+                elif scaleCenter == 'V1':
+                    origin = v1  
+                elif scaleCenter == 'V2':
+                    origin = v2  
+                    
                 bmv1 = bm.verts.new(((v1-origin) * factor) + origin)
                 bmv2 = bm.verts.new(((v2-origin) * factor) + origin)
                 bme = bm.edges.new([bmv1, bmv2])
