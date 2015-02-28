@@ -42,7 +42,8 @@ import bmesh
 import bpy
 import bpy.props
 from math import sqrt, acos, asin, pi, radians, degrees, sin, acos
-from mathutils import Vector, Euler
+from mathutils import Vector, Euler, Matrix, Quaternion
+
 
 # CONSTANTS
 two_pi = 2 * pi #PKHG>??? maybe other constantly used values too???
@@ -257,6 +258,8 @@ class EdgeRoundifier(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO', 'PRESET'}  # enable undo for the operator.PKHG>INFO and PRESET
 
     threshold = 0.0005
+    
+    obj = None
     
     edgeScaleFactor = bpy.props.FloatProperty(name = '', default = 1.0, min = 0.00001, max = 100000.0, step = 0.5, precision = 5)
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
@@ -479,7 +482,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         edges, mesh, bm = self.prepareMesh(context)
         parameters = self.prepareParameters()
-        
+        self.obj = context.scene.objects.active
         scaledEdges = self.scaleDuplicatedEdges(bm, edges, parameters)
 
         if len(scaledEdges) > 0:
@@ -609,10 +612,58 @@ class EdgeRoundifier(bpy.types.Operator):
             self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParamsUpdated2, spinnedVerts)
         return postProcessedArcVerts
 
+########################
+    def rotateArcAroundEdge(self, bm, mesh, arcVerts, edge, parameters):
+        angle = parameters["edgeAngle"]
+        if angle != 0:
+            self.arc_rotator(edge, arcVerts, extra_rotation = angle)
+    # This method was created by PKHG, I (komi3D) adjusted it to fit the rest of addon    
+    def arc_rotator(self, edge, arcVerts, extra_rotation = 0):
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        old_location = self.obj.location.copy()
+        bpy.ops.transform.translate(value = - old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL', mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+        bpy.ops.object.mode_set(mode = 'EDIT')
+        adjust_matrix = self.obj.matrix_parent_inverse
+        bm = bmesh.from_edit_mesh(self.obj.data)
+        v0_old = adjust_matrix  *  arcVerts[0].co.copy()
+        v1_old = adjust_matrix * arcVerts[-1].co.copy()
+
+        #PKHG>INFO move if necessary v0 to origin such that the axis gos through origin and v1
+        if v0_old != Vector((0,0,0)):
+            #print("moving")
+            for i, ele in enumerate(arcVerts):
+                arcVerts[i].co += - v0_old   
+        #PKHG>INFO rotate now
+###        ###axis =  edge.verts[0].co - edge.verts[1].co #v0_old-v1_old
+        axis =  arcVerts[0].co - arcVerts[-1].co 
+   
+        a_quat = Quaternion(axis, radians(extra_rotation)).normalized()
+        #print("(%.2f, %.2f, %.2f), %.2f"    % (a_quat.axis[:] + (degrees(a_quat.angle),)))
+        a_mat = Quaternion(axis, radians(extra_rotation)).normalized().to_matrix()
+        #print("\n 1 29 SEP  new axis=", axis)
+    
+        for ele in arcVerts:
+            ele.co = a_mat * ele.co
+    
+        #PKHG>INFO move back if needed
+        if v0_old != Vector((0,0,0)):
+            for i, ele in enumerate(arcVerts):
+                arcVerts[i].co += + v0_old   
+    
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        #PKHG>INFO move origin object back print("old location = " , old_location)
+        bpy.ops.transform.translate(value = old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL', mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+        #bpy.ops.transform.translate(value = old_location, constraint_axis=(False, False, False), constraint_orientation='LOCAL', mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+        bpy.ops.object.mode_set(mode = 'EDIT')
+
+#######################    
     def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts):
         rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+        
         offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
+        #offsetVerts = self.offsetArcPerpendicular(bm, mesh, spinnedVerts, edge, parameters)
         offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
+        self.rotateArcAroundEdge(bm, mesh, offsetVerts2, edge, parameters)
 
         if parameters["connectArcWithEdge"]:
             self.connectArcTogetherWithEdge(edge,offsetVerts2,bm,mesh, parameters)
@@ -927,6 +978,8 @@ class EdgeRoundifier(bpy.types.Operator):
         axisAngle = parameters["axisAngle"]
         plane = parameters["plane"]
         #compensate rotation center
+        print (" >>>>>>>>>>>>>>>>> ")
+        print (bpy.context.edit_object)
         objectLocation = bpy.context.active_object.location
         center = objectLocation + chosenSpinCenter 
         
