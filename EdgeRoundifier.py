@@ -288,6 +288,8 @@ class EdgeRoundifier(bpy.types.Operator):
     edgeAngle = bpy.props.FloatProperty(name = '', default = 0.0, min = -180.0, max = 180.0, step = 0.5, precision = 1)
     offset = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
     offset2 = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
+    ellipticFactor = bpy.props.FloatProperty(name = '', default = 0.0, min = -1000000.0, max = 1000000.0, step = 0.1, precision = 5)
+    
     
     entryModeItems = [("Radius", "Radius", ""), ("Angle", "Angle", "")]
     entryMode = bpy.props.EnumProperty(
@@ -380,6 +382,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["edgeAngle"] = self.edgeAngle
         parameters["offset"] = self.offset
         parameters["offset2"] = self.offset2
+        parameters["ellipticFactor"] = self.ellipticFactor
         return parameters
 
     def draw(self, context):
@@ -477,6 +480,10 @@ class EdgeRoundifier(bpy.types.Operator):
         row = box.row (align = False)
         row.label('Rotation around edge angle:')
         row.prop(self,'edgeAngle')
+        
+        row = box.row (align = False)
+        row.label('Elliptic factor:')
+        row.prop(self,'ellipticFactor')
 
     def execute(self, context):
 
@@ -612,35 +619,35 @@ class EdgeRoundifier(bpy.types.Operator):
             self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParamsUpdated2, spinnedVerts)
         return postProcessedArcVerts
 
-########################
-    def rotateArcAroundEdge(self, bm, mesh, arcVerts, edge, parameters):
+    def rotateArcAroundEdge(self, bm, mesh, arcVerts, parameters):
         angle = parameters["edgeAngle"]
         if angle != 0:
-            self.arc_rotator(edge, arcVerts, extra_rotation = angle)
-    # This method was created by PKHG, I (komi3D) adjusted it to fit the rest of addon    
-    def arc_rotator(self, edge, arcVerts, extra_rotation = 0):
+            self.arc_rotator(arcVerts, angle, parameters)
+
+    # arc_rotator method was created by PKHG, I (komi3D) adjusted it to fit the rest of addon    
+    def arc_rotator(self, arcVerts, extra_rotation, parameters):
         bpy.ops.object.mode_set(mode = 'OBJECT')
         old_location = self.obj.location.copy()
         bpy.ops.transform.translate(value = - old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL', mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
         bpy.ops.object.mode_set(mode = 'EDIT')
         adjust_matrix = self.obj.matrix_parent_inverse
         bm = bmesh.from_edit_mesh(self.obj.data)
+        lastVert = len(arcVerts) - 1
+        if parameters["drawArcCenters"]:
+            lastVert = lastVert - 1 #center gets added as last vert of arc
         v0_old = adjust_matrix  *  arcVerts[0].co.copy()
-        v1_old = adjust_matrix * arcVerts[-1].co.copy()
+        v1_old = adjust_matrix * arcVerts[lastVert].co.copy()
 
         #PKHG>INFO move if necessary v0 to origin such that the axis gos through origin and v1
         if v0_old != Vector((0,0,0)):
             #print("moving")
             for i, ele in enumerate(arcVerts):
                 arcVerts[i].co += - v0_old   
-        #PKHG>INFO rotate now
-###        ###axis =  edge.verts[0].co - edge.verts[1].co #v0_old-v1_old
+
         axis =  arcVerts[0].co - arcVerts[-1].co 
    
         a_quat = Quaternion(axis, radians(extra_rotation)).normalized()
-        #print("(%.2f, %.2f, %.2f), %.2f"    % (a_quat.axis[:] + (degrees(a_quat.angle),)))
         a_mat = Quaternion(axis, radians(extra_rotation)).normalized().to_matrix()
-        #print("\n 1 29 SEP  new axis=", axis)
     
         for ele in arcVerts:
             ele.co = a_mat * ele.co
@@ -653,17 +660,38 @@ class EdgeRoundifier(bpy.types.Operator):
         bpy.ops.object.mode_set(mode = 'OBJECT')
         #PKHG>INFO move origin object back print("old location = " , old_location)
         bpy.ops.transform.translate(value = old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL', mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
-        #bpy.ops.transform.translate(value = old_location, constraint_axis=(False, False, False), constraint_orientation='LOCAL', mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
         bpy.ops.object.mode_set(mode = 'EDIT')
 
 #######################    
+
+    
+    def makeElliptic(self, bm, mesh, arcVertices, parameters):
+        if parameters["ellipticFactor"] != 0: #if 0 then nothing has to be done
+            lastVert = len(arcVertices) - 1
+            if parameters["drawArcCenters"]:
+                lastVert = lastVert - 1 #center gets added as last vert of arc
+            v0co = arcVertices[0].co
+            v1co = arcVertices[lastVert].co
+            
+            for vertex in arcVertices: #range(len(res_list)):
+                #PKHg>INFO compute the base on the edge  of the height-vector
+                top = vertex.co #res_list[nr].co
+                t = (v1co - v0co).dot(top - v0co)/(v1co - v0co).length ** 2 
+                h_bottom = v0co + t * (v1co - v0co)
+                height = (h_bottom - top )
+                vertex.co = top + parameters["ellipticFactor"] * height
+        
+        return arcVertices
+        
+    
+    
     def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts):
         rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
         
         offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
-        #offsetVerts = self.offsetArcPerpendicular(bm, mesh, spinnedVerts, edge, parameters)
         offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
-        self.rotateArcAroundEdge(bm, mesh, offsetVerts2, edge, parameters)
+        ellipticVerts = self.makeElliptic(bm,mesh,offsetVerts2,parameters)
+        self.rotateArcAroundEdge(bm, mesh, ellipticVerts, parameters)
 
         if parameters["connectArcWithEdge"]:
             self.connectArcTogetherWithEdge(edge,offsetVerts2,bm,mesh, parameters)
