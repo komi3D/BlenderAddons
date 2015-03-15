@@ -96,8 +96,8 @@ class EdgeRoundifierReset(bpy.types.Operator):
     def execute(self,context):
         #bpy.ops.wm.addon_disable(module='bpy.ops.mesh.edge_roundifier')
         #bpy.ops.wm.addon_enable(module='bpy.ops.mesh.edge_roundifier')
-        bpy.ops.wm.addon_disable(module='__main__')
-        bpy.ops.wm.addon_enable(module='__main__')
+        bpy.ops.wm.addon_disable(module="mesh_edge_roundifier")
+        bpy.ops.wm.addon_enable(module="mesh_edge_roundifier")
         return {'FINISHED'}
 
 
