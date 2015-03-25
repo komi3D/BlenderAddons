@@ -41,12 +41,11 @@ bl_info = {
 import bmesh
 import bpy
 import bpy.props
+import imp
 from math import sqrt, acos, asin, pi, radians, degrees, sin, acos
 from mathutils import Vector, Euler, Matrix, Quaternion
+import types
 
-print ("*****************")
-print (__name__)
-print ("*****************")
 
 # CONSTANTS
 two_pi = 2 * pi #PKHG>??? maybe other constantly used values too???
@@ -87,18 +86,6 @@ d_Selected_edges = False
 d_Rotate_Around_Spin_Center = False
 ###################################################################################
 
-class EdgeRoundifierReset(bpy.types.Operator):
-    """Edge Roundifier Reset"""  # blender will use this as a tooltip for menu items and buttons.
-    bl_idname = "mesh.edge_roundifier_reset"  # unique identifier for buttons and menu items to reference.
-    bl_label = "Edge Roundifier Reset"  # display name in the interface.
-    bl_options = {'REGISTER'}  # enable undo for the operator.PKHG>INFO and PRESET
-    
-    def execute(self,context):
-        #bpy.ops.wm.addon_disable(module='bpy.ops.mesh.edge_roundifier')
-        #bpy.ops.wm.addon_enable(module='bpy.ops.mesh.edge_roundifier')
-        bpy.ops.wm.addon_disable(module="mesh_edge_roundifier")
-        bpy.ops.wm.addon_enable(module="mesh_edge_roundifier")
-        return {'FINISHED'}
 
 
 ####################### Geometry and math calcualtion methods #####################
@@ -277,6 +264,7 @@ class EdgeRoundifier(bpy.types.Operator):
     threshold = 0.0005
     
     obj = None
+
     
     edgeScaleFactor = bpy.props.FloatProperty(name = '', default = 1.0, min = 0.00001, max = 100000.0, step = 0.5, precision = 5)
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
@@ -356,7 +344,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     calc = CalculationHelper()
     sel = SelectionHelper()
-
+    
     def prepareMesh(self, context):
         bpy.ops.object.mode_set(mode = 'OBJECT')
         bpy.ops.object.mode_set(mode = 'EDIT')
@@ -406,15 +394,14 @@ class EdgeRoundifier(bpy.types.Operator):
         layout = self.layout
         box = layout.box()
         row = box.row (align = False)
-        row.operator('mesh.edge_roundifier_reset')
         
         row = box.row (align = False)
         row.label('Working Plane:')
         row.prop(self, 'planeEnum', expand = True, text = "a")
         
-        row = box.row (align = False)
-        row.label('ArcMode:')
-        row.prop(self, 'arcMode', expand = True, text = "kind of arc to be created")
+#         row = box.row (align = False)
+#         row.label('ArcMode:')
+#         row.prop(self, 'arcMode', expand = True, text = "kind of arc to be created")
 
         row = box.row (align = False)
         row.label('EntryMode:')
@@ -506,7 +493,7 @@ class EdgeRoundifier(bpy.types.Operator):
         row.prop(self,'ellipticFactor')
 
     def execute(self, context):
-
+            
         edges, mesh, bm = self.prepareMesh(context)
         parameters = self.prepareParameters()
         self.obj = context.scene.objects.active
@@ -611,20 +598,20 @@ class EdgeRoundifier(bpy.types.Operator):
 
         roundifyParams = None
         arcVerts = None
-        if parameters["arcMode"] == "HalfEdgeArc":
-            roundifyParams = self.calculateRoundifyParamsHalfMode(edge, parameters, bm, mesh)
-            if roundifyParams == None:
-                return
-            #self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh, True)
-            arcVerts = self.spinAndPostprocess(edge, parameters, bm, mesh, edgeCenter, roundifyParams, False)
-            
-        else:
+#         if parameters["arcMode"] == "HalfEdgeArc":
+#             roundifyParams = self.calculateRoundifyParamsHalfMode(edge, parameters, bm, mesh)
+#             if roundifyParams == None:
+#                 return
+#             #self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh, True)
+#             arcVerts = self.spinAndPostprocess(edge, parameters, bm, mesh, edgeCenter, roundifyParams, False)
+#             
+#         else:
             #PKHG>TEST only once debugPrintNew(True, str(roundifyParams))
-            roundifyParams = self.calculateRoundifyParams(edge, parameters, bm, mesh)
-            if roundifyParams == None:
-                return
-                
-            arcVerts = self.spinAndPostprocess(edge, parameters, bm, mesh, edgeCenter, roundifyParams, True)
+        roundifyParams = self.calculateRoundifyParams(edge, parameters, bm, mesh)
+        if roundifyParams == None:
+            return
+            
+        arcVerts = self.spinAndPostprocess(edge, parameters, bm, mesh, edgeCenter, roundifyParams, True)
         return arcVerts
                  
     def spinAndPostprocess(self, edge, parameters, bm, mesh, edgeCenter, roundifyParams, switchInitialVertex):
@@ -901,6 +888,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         spinAxis = self.getSpinAxis(parameters["plane"])
         steps = parameters["segments"]
+        angle = -angle #default rotate to the right
         
         X = [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
         return X
@@ -971,19 +959,23 @@ class EdgeRoundifier(bpy.types.Operator):
         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
 
         v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
-
+        otherVert = None
         # Duplicate initial vertex
 
         v0 = None
         if parameters["flipVertex"] == switchInitialVertex:
             v0 = bm.verts.new(v0org.co)
+            otherVert = v1org
         else:
             v0 = bm.verts.new(v1org.co)
+            spinCenter = otherSpinCenter
+            spinCenter2 = chosenSpinCenter
+            otherVert = v0org
             #angle = -angle
             
         if(parameters["invertAngle"]):
             if angle < 0:
-                angle = two_pi - angle
+                angle = two_pi + angle
             if angle > 0:
                 angle = -two_pi + angle
 
@@ -999,9 +991,12 @@ class EdgeRoundifier(bpy.types.Operator):
         if parameters["fullCircles"] == False and parameters["minusAngle"] == True:
             angle = -angle
             
-       
-        result = bmesh.ops.spin(bm, geom = [v0], cent = spinCenter, axis = spinAxis, \
+        bmcopy = bm.copy()
+        result = bmesh.ops.spin(bmcopy, geom = [v0], cent = spinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
+        if (result["last_geom"])
+        
+        
         if parameters['drawArcCenters']: 
             vX = bm.verts.new(spinCenter)
             steps = steps + 1 #to compensate added vertex for arc center
@@ -1192,10 +1187,6 @@ class EdgeRoundifier(bpy.types.Operator):
         return (context.scene.objects.active.type == 'MESH') and (context.scene.objects.active.mode == 'EDIT')
 
 
-        
-
-
-
 def draw_item(self, context):
     self.layout.operator_context = 'INVOKE_DEFAULT'
     self.layout.operator('mesh.edge_roundifier')
@@ -1203,13 +1194,11 @@ def draw_item(self, context):
 
 def register():
     bpy.utils.register_class(EdgeRoundifier)
-    bpy.utils.register_class(EdgeRoundifierReset)
     bpy.types.VIEW3D_MT_edit_mesh_edges.append(draw_item)
 
 
 def unregister():
     bpy.utils.unregister_class(EdgeRoundifier)
-    bpy.utils.unregister_class(EdgeRoundifierReset)
     bpy.types.VIEW3D_MT_edit_mesh_edges.remove(draw_item)
 
 if __name__ == "__main__":
