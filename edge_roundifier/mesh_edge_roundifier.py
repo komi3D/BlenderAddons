@@ -962,12 +962,12 @@ class EdgeRoundifier(bpy.types.Operator):
         otherVert = None
         # Duplicate initial vertex
 
-        v0 = None
+        vStart = None
         if parameters["flipVertex"] == switchInitialVertex:
-            v0 = bm.verts.new(v0org.co)
+            vStart = bm.verts.new(v0org.co)
             otherVert = v1org
         else:
-            v0 = bm.verts.new(v1org.co)
+            vStart = bm.verts.new(v1org.co)
             spinCenter = otherSpinCenter
             spinCenter2 = chosenSpinCenter
             otherVert = v0org
@@ -992,9 +992,12 @@ class EdgeRoundifier(bpy.types.Operator):
             angle = -angle
             
         bmcopy = bm.copy()
-        result = bmesh.ops.spin(bmcopy, geom = [v0], cent = spinCenter, axis = spinAxis, \
+        result = bmesh.ops.spin(bmcopy, geom = [vStart], cent = spinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
-        if (result["last_geom"])
+        if (result["last_geom"].verts[-1].co - otherVert.co > [self.threshold,self.threshold,self.threshold]):
+            angle = -angle
+            result = bmesh.ops.spin(bm, geom = [vStart], cent = spinCenter, axis = spinAxis, \
+                                   angle = angle, steps = steps, use_duplicate = False)
         
         
         if parameters['drawArcCenters']: 
@@ -1011,7 +1014,7 @@ class EdgeRoundifier(bpy.types.Operator):
         spinVertices = []
         if lastSpinVertIndices.stop <= len(bm.verts): #make sure arc was added to bmesh
             spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
-            spinVertices = [v0] + spinVertices
+            spinVertices = [vStart] + spinVertices
         return spinVertices,[spinCenter, spinCenter2, spinAxis, angle, steps, refObjectLocation]
         
         
