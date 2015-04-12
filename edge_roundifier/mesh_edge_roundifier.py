@@ -960,7 +960,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         elif (angle != two_pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0org, v1org, lastSpinVertIndices)
+                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
         #PKHG sel is SelectionHelper  print(type(self.sel),dir(self.sel))
         self.sel.refreshMesh(bm, mesh)
         if alternativeLastSpinVertIndices != []:
