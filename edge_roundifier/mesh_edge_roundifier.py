@@ -581,12 +581,6 @@ class EdgeRoundifier(bpy.types.Operator):
         edgeVector =  V2 - V1 
         edgeLength = edgeVector.length 
         edgeCenter = (V2 + V1) * 0.5 
-#         debugPrintNew(d_Edge_Info, "\nEdge info=====begin=================================",\
-#                       "V1 info============== " + str(V1),\
-#                       "V2 info============== " + str(V2),\
-#                       "Edge Length============== " + str(edgeLength),\
-#                       "Edge Center============== " + str(edgeCenter),\
-#                       "Edge info=====end=================================")
         return V1, V2, edgeVector, edgeLength, edgeCenter
 
 
@@ -824,7 +818,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         debugPrintNew(d_Plane, "PLANE: " +  parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(edgeCenter, edgeVector, parameters["plane"])
-        debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
+        #debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
         circleMidPoint = V1
         circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters["plane"])
         radius = parameters["radius"]
@@ -900,10 +894,10 @@ class EdgeRoundifier(bpy.types.Operator):
         if(parameters["invertAngle"]):
             if angle < 0:
                 angle = two_pi + angle
-                print ("ANGLE - = " + str(angle))
+                #print ("ANGLE - = " + str(angle))
             elif angle > 0:
                 angle = -two_pi + angle
-                print ("ANGLE + = " + str(angle))
+                #print ("ANGLE + = " + str(angle))
             else:
                 angle = two_pi
 
@@ -913,8 +907,11 @@ class EdgeRoundifier(bpy.types.Operator):
 
         print ("ANGLE = " + str(angle))
         # Duplicate initial vertex
+        ###print ("V0 ORG index= " + str(v0org.index) + " >> " + str (v0org))
         v0 = bm.verts.new(v0org.co)
-
+        #v0 = v0org
+        ###print ("V0 index= " + str(v0.index) + " >> " + str (v0))
+        
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
 
@@ -924,8 +921,14 @@ class EdgeRoundifier(bpy.types.Operator):
         bm.verts.ensure_lookup_table()
         lastVertIndex = bm.verts[vertsLength - 1].index
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
-        debugPrintNew(True, str(result) + "lastVertIndex =" + str(lastVertIndex))
-
+#         debugPrintNew(True, "===SPIN=== : " + str(result) + "lastVertIndex =" + str(lastVertIndex))
+#         
+#         for v in bm.verts:
+#             print (str(v.index) + ")" +str(v.co))
+#         print("===")
+        ###bmesh.update_edit_mesh(mesh, True)
+        self.sel.refreshMesh(bm, mesh)
+        
         alternativeLastSpinVertIndices = []
 
         if (angle == pi or angle == -pi):
@@ -937,10 +940,10 @@ class EdgeRoundifier(bpy.types.Operator):
             midVertexDistance = (Vector(refObjectLocation) - Vector(midVert)).length 
             midEdgeDistance = (Vector(refObjectLocation) - Vector(edgeCenter)).length
 
-            debugPrint("midVertexDistance: ")
-            debugPrint(midVertexDistance)
-            debugPrint("midEdgeDistance: ")
-            debugPrint(midEdgeDistance)
+            #debugPrint("midVertexDistance: ")
+            #debugPrint(midVertexDistance)
+            #debugPrint("midEdgeDistance: ")
+            #debugPrint(midEdgeDistance)
 
             if (parameters["invertAngle"]) or (parameters["flipVertex"]):
                 if (midVertexDistance > midEdgeDistance):
@@ -957,16 +960,20 @@ class EdgeRoundifier(bpy.types.Operator):
 
         elif (angle != two_pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0org, v1org, lastSpinVertIndices)
         #PKHG sel is SelectionHelper  print(type(self.sel),dir(self.sel))
         self.sel.refreshMesh(bm, mesh)
         if alternativeLastSpinVertIndices != []:
             lastSpinVertIndices = alternativeLastSpinVertIndices
         
+        print ("LAST SpinVertIndices = " + str(lastSpinVertIndices))
         spinVertices = []
         if lastSpinVertIndices.stop <= len(bm.verts): #make sure arc was added to bmesh
             spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
-            spinVertices = [v0] + spinVertices
+            if alternativeLastSpinVertIndices != []:
+                spinVertices = spinVertices + [v0] 
+            else:
+                spinVertices = [v0] + spinVertices
         print ("SpinVerts = " + str(spinVertices))
         return spinVertices,[chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
 
@@ -987,13 +994,20 @@ class EdgeRoundifier(bpy.types.Operator):
         bpy.ops.object.mode_set(mode = 'OBJECT')
         bpy.ops.object.mode_set(mode = 'EDIT')
 
+       
 
     def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
 
         self.deleteSpinVertices(bm, mesh, lastSpinVertIndices)
-#       v0prim = bm.verts.new(v0.co) #komi3d > I am not sure if it should be new vert here or not...
+#        v0prim = bm.verts.new(v0.co) #komi3d > I am not sure if it should be new vert here or not...
+#        self.deleteSpinVertices(bm, mesh, range(v0.index, v0.index + 1))
         v0prim = v0
 
+#         print("=DELETED==")
+#         for v in bm.verts:
+#             print (str(v.index) + ")" +str(v.co))
+#         print("===")
+        
         result2 = bmesh.ops.spin(bm, geom = [v0prim], cent = chosenSpinCenter, axis = spinAxis,
             angle = -angle, steps = steps, use_duplicate = False)
         # it seems there is something wrong with last index of this spin...
@@ -1002,8 +1016,12 @@ class EdgeRoundifier(bpy.types.Operator):
         bm.verts.ensure_lookup_table()
         lastVertIndex2 = bm.verts[vertsLength - 1].index
 
+#         debugPrintNew(True, "ALTERNATE SPIN: " + str(result2) + "lastVertIndex =" + str(lastVertIndex2))
+#         for v in bm.verts:
+#             print (str(v.index) + ")" +str(v.co))
+#         print("===")
+
         lastSpinVertIndices2 = self.getLastSpinVertIndices(steps, lastVertIndex2)
-        print ("lastSpinVerts2 = " + str(lastSpinVertIndices2))
 # second spin also does not hit the v1org
         if (result2['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
             
@@ -1015,6 +1033,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def getLastSpinVertIndices(self, steps, lastVertIndex):
         arcfirstVertexIndex = lastVertIndex - steps + 1
+        #arcfirstVertexIndex = lastVertIndex - steps
         lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
         return lastSpinVertIndices
 
@@ -1036,6 +1055,7 @@ class EdgeRoundifier(bpy.types.Operator):
             rot = Euler( (0.0, radians(axisAngle),0.0),'XYZ' ).to_matrix()
            
         indexes = [v.index for v in vertices] 
+        print ("indexes: " + str(indexes))
         bmesh.ops.rotate(
                     bm,
                     cent=center,
@@ -1173,7 +1193,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         debugPrintNew(d_Plane, "PLANE: " +  parameters["plane"])
         lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(secondaryVertex, edgeVector, parameters["plane"])
-        debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
+        #debugPrint(d_LineAB, "Line Coefficients: " +  str(lineAB))
         circleMidPoint = primaryVertex
         circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(primaryVertex, parameters["plane"])
         radius = parameters["radius"]
