@@ -817,9 +817,16 @@ class EdgeRoundifier(bpy.types.Operator):
         offset = parameters["offset"]
         translation = offset * perpendicularVector
         
+        translatableVerts = []
+        if parameters['drawArcCenters']:
+            for i in range (0, len(Verts)-1):
+                translatableVerts.append(Verts[i])
+        else:
+            translatableVerts = Verts
+                
         bmesh.ops.translate(
         bm,
-        verts=Verts,
+        verts=translatableVerts,
         vec=translation)
         
         indexes = [v.index for v in Verts] 
@@ -832,9 +839,16 @@ class EdgeRoundifier(bpy.types.Operator):
         offset = parameters["offset2"]
         translation = offset * edgeVector
         
+        translatableVerts = []
+        if parameters['drawArcCenters']:
+            for i in range (0, len(Verts)-1):
+                translatableVerts.append(Verts[i])
+        else:
+            translatableVerts = Verts
+            
         bmesh.ops.translate(
         bm,
-        verts=Verts,
+        verts=translatableVerts,
         vec=translation)
         
         indexes = [v.index for v in Verts] 
@@ -949,10 +963,15 @@ class EdgeRoundifier(bpy.types.Operator):
         result = bmesh.ops.spin(bm, geom = [v0], cent = chosenSpinCenter, axis = spinAxis, \
                                    angle = angle, steps = steps, use_duplicate = False)
 
+        if parameters['drawArcCenters']: 
+            vX = bm.verts.new(chosenSpinCenter)
+            steps = steps + 1 #to compensate added vertex for arc center
+            
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
         vertsLength = len(bm.verts)
         bm.verts.ensure_lookup_table()
+        
         lastVertIndex = bm.verts[vertsLength - 1].index
         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
 
@@ -961,8 +980,12 @@ class EdgeRoundifier(bpy.types.Operator):
         alternativeLastSpinVertIndices = []
 
         if (angle == pi or angle == -pi):
-
+             
             midVertexIndex = lastVertIndex - round(steps / 2)
+            if parameters['drawArcCenters']: 
+                midVertexIndex = lastVertIndex -1 - round((steps-1) / 2)
+            
+            
             bm.verts.ensure_lookup_table()
             midVert = bm.verts[midVertexIndex].co
 
@@ -971,20 +994,20 @@ class EdgeRoundifier(bpy.types.Operator):
 
             if (parameters["invertAngle"]) or (parameters["flip"]):
                 if (midVertexDistance > midEdgeDistance):
-                    alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                    alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices,  parameters)
             elif (parameters["bothSides"]):
                 #do some more testing here!!!
-                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
-                alternativeLastSpinVertIndices2 = self.alternateSpin(bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
+                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [],  parameters)
+                alternativeLastSpinVertIndices2 = self.alternateSpin(bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [],  parameters)
                 if alternativeLastSpinVertIndices2 != []:
                     alternativeLastSpinVertIndices = alternativeLastSpinVertIndices2
             else:
                 if (midVertexDistance < midEdgeDistance):
-                    alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                    alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices,  parameters)
 
         elif (angle != two_pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices,  parameters)
 
         self.sel.refreshMesh(bm, mesh)
         if alternativeLastSpinVertIndices != []:
@@ -992,11 +1015,18 @@ class EdgeRoundifier(bpy.types.Operator):
         
         spinVertices = []
         if lastSpinVertIndices.stop <= len(bm.verts): #make sure arc was added to bmesh
-            spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
-            if alternativeLastSpinVertIndices != []:
-                spinVertices = spinVertices + [v0] 
+            tempspinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
+            centerVert = []
+            if parameters['drawArcCenters']:
+                centerVert.append(tempspinVertices[len(tempspinVertices) - 1])
+                spinVertices = bm.verts[0:-1]
             else:
-                spinVertices = [v0] + spinVertices
+                spinVertices = tempspinVertices
+                
+            if alternativeLastSpinVertIndices != []:
+                spinVertices = spinVertices + [v0] + centerVert
+            else:
+                spinVertices = [v0] + spinVertices + centerVert
 
         return spinVertices,[chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
 
@@ -1016,12 +1046,20 @@ class EdgeRoundifier(bpy.types.Operator):
         bpy.ops.object.mode_set(mode = 'OBJECT')
         bpy.ops.object.mode_set(mode = 'EDIT')
 
-    def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
+    def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices, parameters):
         self.deleteSpinVertices(bm, mesh, lastSpinVertIndices)
         v0prim = v0
        
+        if parameters['drawArcCenters']: 
+           steps = steps - 1
+           
         result2 = bmesh.ops.spin(bm, geom = [v0prim], cent = chosenSpinCenter, axis = spinAxis,
             angle = -angle, steps = steps, use_duplicate = False)
+        
+        if parameters['drawArcCenters']:
+            steps = steps + 1
+            vX = bm.verts.new(chosenSpinCenter)
+            
         # it seems there is something wrong with last index of this spin...
         # I need to calculate the last index manually here...
         vertsLength = len(bm.verts)
@@ -1060,13 +1098,24 @@ class EdgeRoundifier(bpy.types.Operator):
         if plane == XZ:
             rot = Euler( (0.0, radians(axisAngle),0.0),'XYZ' ).to_matrix()
            
-        indexes = [v.index for v in vertices] 
 
+        rotatableVerts = []
+        indexes = [v.index for v in vertices]
+        if parameters['drawArcCenters']:
+            for i in range (0, len(vertices)-1):
+                rotatableVerts.append(vertices[i])
+        else:
+            rotatableVerts = vertices
+                              
+        print ("Vertices count: " + str(len(vertices)))
+        print ("RotatableVertices count: " + str(len(rotatableVerts)))
+        print ("RotatableVertices " + str(rotatableVerts))
+        
         bmesh.ops.rotate(
                     bm,
                     cent=center,
                     matrix=rot,
-                    verts=vertices,
+                    verts=rotatableVerts,
                     space=bpy.context.edit_object.matrix_world
                     )
         self.sel.refreshMesh(bm, mesh)
