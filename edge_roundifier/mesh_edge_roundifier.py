@@ -215,6 +215,18 @@ class CalculationHelper:
         return [X, Y]
         
 
+    def getEdgeReference(self, edge, edgeCenter, plane):
+        vert1 = edge.verts[1].co
+        V = vert1 - edgeCenter
+        orthoVector = Vector((V[1], -V[0], V[2]))
+        if plane == 'XZ':
+            orthoVector = Vector((V[2], V[1], -V[0]))
+        elif plane == 'YZ':
+            orthoVector = Vector((V[0], V[2], -V[1]))
+        refPoint = edgeCenter + orthoVector
+        return refPoint
+        
+        
 ########################################################
 ################# SELECTION METHODS ####################
 
@@ -318,7 +330,8 @@ class EdgeRoundifier(bpy.types.Operator):
         default = 'Other',
         description = "Presets prepare standard angles and calculate proper ray")
 
-    refItems = [('ORG', "Origin", "Use Origin Location"), ('CUR', "3D Cursor", "Use 3DCursor Location")]
+    refItems = [('ORG', "Origin", "Use Origin Location"), ('CUR', "3D Cursor", "Use 3DCursor Location")
+                , ('EDG', "Edge", "Use Individual Edge Reference")]
     referenceLocation = bpy.props.EnumProperty(
         items = refItems,
         name = '',
@@ -393,7 +406,12 @@ class EdgeRoundifier(bpy.types.Operator):
         box = layout.box()
 
         row = box.row (align = False)
-        row.label('Plane:')
+        split = row.split(percentage=0.333)
+        col = split.column()
+        col.label('Plane:')
+        #split = split.split(percentage = 0.75)
+        col2 = split.column()
+        row = col2.row(align = False)
         row.prop(self, 'planeEnum', expand = True, text = "a")
         
         row = box.row (align = False)
@@ -904,8 +922,10 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if parameters["refObject"] == "ORG":
             refObjectLocation = [0, 0, 0]
-        else:
+        elif parameters["refObject"] == "CUR":
             refObjectLocation = bpy.context.scene.cursor_location - objectLocation
+        else:
+            refObjectLocation = self.calc.getEdgeReference(edge, edgeCenter, parameters["plane"])
 
         debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
         chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(refObjectLocation, roots)
