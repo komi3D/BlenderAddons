@@ -998,6 +998,10 @@ class EdgeRoundifier(bpy.types.Operator):
             else:
                 spinVertices = [v0] + spinVertices
 
+        if (parameters['drawArcCenters']):
+            centerVert = bm.verts.new(chosenSpinCenter)
+            spinVertices.append(centerVert)
+            
         return spinVertices,[chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
 
 ##########################################
