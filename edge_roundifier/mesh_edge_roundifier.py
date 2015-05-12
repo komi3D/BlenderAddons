@@ -409,7 +409,6 @@ class EdgeRoundifier(bpy.types.Operator):
         split = row.split(percentage=0.333)
         col = split.column()
         col.label('Plane:')
-        #split = split.split(percentage = 0.75)
         col2 = split.column()
         row = col2.row(align = False)
         row.prop(self, 'planeEnum', expand = True, text = "a")
@@ -427,7 +426,11 @@ class EdgeRoundifier(bpy.types.Operator):
         row.prop(self, 'entryMode', expand = True, text = "type of input given by user")
 
         row = box.row (align = False)
-        row.label('Reference:')
+        split = row.split(percentage=0.333)
+        col = split.column()
+        col.label('Reference:')
+        col2 = split.column()
+        row = col2.row(align = False)
         row.prop(self, 'referenceLocation', expand = True, text = "a")
 
         box = layout.box()
