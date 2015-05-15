@@ -79,6 +79,22 @@ d_Rotate_Around_Spin_Center = False
 ###################################################################################
 
 
+class EdgeRoundifierPanel(bpy.types.Panel):
+    bl_label = "Edge Roundifier"
+    bl_idname = "EdgeRoundifierPanel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_category = "Addons"
+    
+    @classmethod
+    def poll(cls, context):
+        return (context.object is not None and context.object.type == "MESH")
+    
+    def draw(self,context):
+        row = self.layout.row(True)
+        col = row.column(True)
+        col.operator(EdgeRoundifier.bl_idname, text = "Edge Roundifier")
+
 
 ####################### Geometry and math calcualtion methods #####################
 
@@ -181,8 +197,6 @@ class CalculationHelper:
         if roots != None:
             y1 = roots[0]
             y2 = roots[1]
-#             y1 = roots[1]
-#             y2 = roots[0]
             point1 = [xValue, y1]
             point2 = [xValue, y2]
             return [point1, point2]
@@ -269,7 +283,6 @@ class EdgeRoundifier(bpy.types.Operator):
     
     obj = None
 
-    
     edgeScaleFactor = bpy.props.FloatProperty(name = '', default = 1.0, min = 0.00001, max = 100000.0, step = 0.5, precision = 5)
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
     a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.5, precision = 1)
@@ -376,8 +389,6 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["radius"] = self.r
         parameters["angle"] = self.a
         parameters["segments"] = self.n
-        #parameters["minusAngle"] = self.minusAngle
-        #parameters["flipCenter"] = self.flipCenter
         parameters["fullCircles"] = self.fullCircles
         parameters["invertAngle"] = self.invertAngle
         parameters["bothSides"] = self.bothSides
@@ -404,119 +415,81 @@ class EdgeRoundifier(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         box = layout.box()
+        uiPercentage = 0.333
 
-        row = box.row (align = False)
-        split = row.split(percentage=0.333)
-        col = split.column()
-        col.label('Plane:')
-        col2 = split.column()
-        row = col2.row(align = False)
-        row.prop(self, 'planeEnum', expand = True, text = "a")
-        
-        row = box.row (align = False)
-        row.label('Mode:')
-        row.prop(self, 'workMode', expand = True, text = "a")
-                
-#         row = box.row (align = False)
-#         row.label('ArcMode:')
-#         row.prop(self, 'arcMode', expand = True, text = "kind of arc to be created")
-
-        row = box.row (align = False)
-        row.label('Entry mode:')
-        row.prop(self, 'entryMode', expand = True, text = "type of input given by user")
-
-        row = box.row (align = False)
-        split = row.split(percentage=0.333)
-        col = split.column()
-        col.label('Reference:')
-        col2 = split.column()
-        row = col2.row(align = False)
-        row.prop(self, 'referenceLocation', expand = True, text = "a")
+        self.addEnumParameterToUI(box, False, uiPercentage, 'Mode:', 'workMode')
+        self.addEnumParameterToUI(box, False, uiPercentage, 'Plane:', 'planeEnum')
+        self.addEnumParameterToUI(box, False, uiPercentage, 'Reference:', 'referenceLocation')
 
         box = layout.box()
-        row = box.row (align = False)
-        row.label('')
-        row.label('')
-        row.label('')
-        
-        row.prop(self, 'edgeScaleCenterEnum', expand = True, text = "edgeScaleCenter")
-        row = box.row (align = False)
-        row.label('Scale edge factor:')
-        row.prop(self, 'edgeScaleFactor')
-        
+        self.addEnumParameterToUI(box, False, uiPercentage, 'Scale base:', 'edgeScaleCenterEnum')
+        self.addParameterToUI(box, False, uiPercentage, 'Scale factor:', 'edgeScaleFactor')
+
         box = layout.box()
+        self.addEnumParameterToUI(box, False, uiPercentage, 'Entry mode:', 'entryMode')
+        
         row = box.row (align = False)
         row.prop(self, 'angleEnum', expand = True, text = "angle presets")
-        
-        
-        row = box.row (align = False)
-        row.label('Angle:')
-        row.prop(self, 'a')
-        row = box.row (align = False)
-        row.label('Radius:')
-        row.prop(self, 'r')
-        
-        row = box.row (align = False)
-        row.label('Segments:')
-        row.prop(self, 'n')
+
+        self.addParameterToUI(box, False, uiPercentage, 'Angle:', 'a')
+        self.addParameterToUI(box, False, uiPercentage, 'Radius:', 'r')
+        self.addParameterToUI(box, False, uiPercentage, 'Segments:', 'n')
+
+###################################
+        box = layout.box()
+        self.addTwoCheckboxesToUI(box, False, 'Options:', 'flip','invertAngle')
+        self.addTwoCheckboxesToUI(box, False, '', 'bothSides','fullCircles')
+        self.addCheckboxToUI(box, False, '', 'drawArcCenters')
 
         box = layout.box()
-        row = box.row (align = False)
-        row.label('Options:')
-        row.prop(self, 'flip')
-        row.prop(self, 'invertAngle')
-        row = box.row (align = False)
-        row.label('')
-        row.prop(self, 'bothSides' )
-        row.prop(self, 'fullCircles')
-        row = box.row (align = False)
-        row.label('')
-        row.prop(self, 'drawArcCenters')
-        row.label('')
+        self.addTwoCheckboxesToUI(box, False, 'Remove:', 'removeEdges','removeScaledEdges')
 
         box = layout.box()
-        row = box.row (align = False)
-        row.label('Remove:')
-        row.prop(self, 'removeEdges')
-        row.prop(self, 'removeScaledEdges')
-
-        
-        box = layout.box()
-        row = box.row (align = False)
-        row.label('Connect:')
-        row.prop(self, 'connectArcs')
-        row.prop(self, 'connectArcsFlip')
-
-        row = box.row (align = False)
-        row.label('')
-        row.prop(self, 'connectArcWithEdge')
-        row.prop(self, 'connectArcWithEdgeFlip')
-                
-        row = box.row (align = False)
-        row.label('')
-        row.prop(self, 'connectScaledAndBase')
-        row.label('')
+        self.addTwoCheckboxesToUI(box, False, 'Connect:', 'connectArcs','connectArcsFlip')
+        self.addTwoCheckboxesToUI(box, False, '', 'connectArcWithEdge','connectArcWithEdgeFlip')
+        self.addCheckboxToUI(box, False, '', 'connectScaledAndBase')
+################################
                 
         box = layout.box()
-        row = box.row (align = False)
-        row.label('Orhto offset:')
-        row.prop(self,'offset')
-        row = box.row (align = False)
-        row.label('Parallel offset:')
-        row.prop(self,'offset2')
+        self.addParameterToUI(box, False, uiPercentage, 'Orhto offset:', 'offset')
+        self.addParameterToUI(box, False, uiPercentage, 'Parallel offset:', 'offset2')
         
         box = layout.box()
-        row = box.row (align = False)
-        row.label('Rotate around edge:')
-        row.prop(self,'edgeAngle')
-        row = box.row (align = False)
-        row.label('Rotate around spin center:')
-        row.prop(self,'axisAngle')
+        self.addParameterToUI(box, False, uiPercentage, 'Edge rotate :', 'edgeAngle')
+        self.addParameterToUI(box, False, uiPercentage, 'Spin center rotate:', 'axisAngle')
         
         box = layout.box()
-        row = box.row (align = False)
-        row.label('Elliptic factor:')
-        row.prop(self,'ellipticFactor')
+        self.addParameterToUI(box, False, uiPercentage, 'Elliptic factor:', 'ellipticFactor')
+
+    def addParameterToUI(self, layout, alignment, percent, label, property):
+        row = layout.row (align = alignment)
+        split = row.split(percentage=percent)
+        col = split.column()
+        col.label(label)
+        col2 = split.column()
+        row = col2.row(align = alignment)
+        row.prop(self, property)
+        
+    def addTwoCheckboxesToUI(self, layout, alignment, label, property1, property2):
+        row = layout.row (align = alignment)
+        row.label(label)
+        row.prop(self, property1)
+        row.prop(self, property2)
+        
+    def addCheckboxToUI(self, layout, alignment, label, property1):
+        row = layout.row (align = alignment)
+        row.label(label)
+        row.prop(self, property1)
+        row.label('')
+        
+    def addEnumParameterToUI(self, layout, alignment, percent, label, property):
+        row = layout.row (align = alignment)
+        split = row.split(percentage=percent)
+        col = split.column()
+        col.label(label)
+        col2 = split.column()
+        row = col2.row(align = alignment)
+        row.prop(self, property, expand = True, text = "a")
 
     def execute(self, context):
             
@@ -1373,11 +1346,13 @@ def draw_item(self, context):
 
 def register():
     bpy.utils.register_class(EdgeRoundifier)
+    bpy.utils.register_class(EdgeRoundifierPanel)
     bpy.types.VIEW3D_MT_edit_mesh_edges.append(draw_item)
 
 
 def unregister():
     bpy.utils.unregister_class(EdgeRoundifier)
+    bpy.utils.unregister_class(EdgeRoundifierPanel)
     bpy.types.VIEW3D_MT_edit_mesh_edges.remove(draw_item)
 
 if __name__ == "__main__":
