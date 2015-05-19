@@ -972,7 +972,8 @@ class EdgeRoundifier(bpy.types.Operator):
                 alternativeLastSpinVertIndices = self.alternateSpin180(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
                 bothSpinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
                 alternativeSpinVertices= [ bm.verts[i] for i in alternativeLastSpinVertIndices]
-                bothSpinVertices = bothSpinVertices + [v0] + alternativeSpinVertices
+                bothSpinVertices = [v0] + bothSpinVertices + alternativeSpinVertices 
+                print (bothSpinVertices)
             
             elif ((parameters["invertAngle"]) or (parameters["flip"] )) and not parameters["bothSides"]:
                 if (midVertexDistance > midEdgeDistance):
