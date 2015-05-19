@@ -1268,67 +1268,67 @@ class EdgeRoundifier(bpy.types.Operator):
         return X
 
       
-    def drawSpinSIMPLE(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh, switchInitialVertex):       
-        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
-
-        v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
-        otherVert = None
-        # Duplicate initial vertex
-
-        vStart = None
-        if parameters["flip"] == switchInitialVertex:
-            vStart = bm.verts.new(v0org.co)
-            otherVert = v1org
-        else:
-            vStart = bm.verts.new(v1org.co)
-            spinCenter = otherSpinCenter
-            spinCenter2 = chosenSpinCenter
-            otherVert = v0org
-            #angle = -angle
-            
-        if(parameters["invertAngle"]):
-            if angle < 0:
-                angle = two_pi + angle
-            if angle > 0:
-                angle = -two_pi + angle
-
-
-        if(parameters["fullCircles"]):
-            angle = two_pi
-        spinCenter = chosenSpinCenter
-        spinCenter2 = otherSpinCenter
-        if parameters["flipCenter"] == True:
-            spinCenter = otherSpinCenter
-            spinCenter2 = chosenSpinCenter
-
-        if parameters["fullCircles"] == False and parameters["minusAngle"] == True:
-            angle = -angle
-            
-        bmcopy = bm.copy()
-        result = bmesh.ops.spin(bmcopy, geom = [vStart], cent = spinCenter, axis = spinAxis, \
-                                   angle = angle, steps = steps, use_duplicate = False)
-        if (result["last_geom"].verts[-1].co - otherVert.co > [self.threshold,self.threshold,self.threshold]):
-            angle = -angle
-            result = bmesh.ops.spin(bm, geom = [vStart], cent = spinCenter, axis = spinAxis, \
-                                   angle = angle, steps = steps, use_duplicate = False)
-        
-        
-        if parameters['drawArcCenters']: 
-            vX = bm.verts.new(spinCenter)
-            steps = steps + 1 #to compensate added vertex for arc center
-            
-            
-        vertsLength = len(bm.verts)
-        bm.verts.ensure_lookup_table()
-        lastVertIndex = bm.verts[vertsLength - 1].index
-        
-        lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
-        
-        spinVertices = []
-        if lastSpinVertIndices.stop <= len(bm.verts): #make sure arc was added to bmesh
-            spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
-            spinVertices = [vStart] + spinVertices
-        return spinVertices,[spinCenter, spinCenter2, spinAxis, angle, steps, refObjectLocation]
+#     def drawSpinSIMPLE(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh, switchInitialVertex):       
+#         [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+# 
+#         v0org, v1org = (edge.verts[0], edge.verts[1]) #old self.getVerticesFromEdge(edge)
+#         otherVert = None
+#         # Duplicate initial vertex
+# 
+#         vStart = None
+#         if parameters["flip"] == switchInitialVertex:
+#             vStart = bm.verts.new(v0org.co)
+#             otherVert = v1org
+#         else:
+#             vStart = bm.verts.new(v1org.co)
+#             spinCenter = otherSpinCenter
+#             spinCenter2 = chosenSpinCenter
+#             otherVert = v0org
+#             #angle = -angle
+#             
+#         if(parameters["invertAngle"]):
+#             if angle < 0:
+#                 angle = two_pi + angle
+#             if angle > 0:
+#                 angle = -two_pi + angle
+# 
+# 
+#         if(parameters["fullCircles"]):
+#             angle = two_pi
+#         spinCenter = chosenSpinCenter
+#         spinCenter2 = otherSpinCenter
+#         if parameters["flipCenter"] == True:
+#             spinCenter = otherSpinCenter
+#             spinCenter2 = chosenSpinCenter
+# 
+#         if parameters["fullCircles"] == False and parameters["minusAngle"] == True:
+#             angle = -angle
+#             
+#         bmcopy = bm.copy()
+#         result = bmesh.ops.spin(bmcopy, geom = [vStart], cent = spinCenter, axis = spinAxis, \
+#                                    angle = angle, steps = steps, use_duplicate = False)
+#         if (result["last_geom"].verts[-1].co - otherVert.co > [self.threshold,self.threshold,self.threshold]):
+#             angle = -angle
+#             result = bmesh.ops.spin(bm, geom = [vStart], cent = spinCenter, axis = spinAxis, \
+#                                    angle = angle, steps = steps, use_duplicate = False)
+#         
+#         
+#         if parameters['drawArcCenters']: 
+#             vX = bm.verts.new(spinCenter)
+#             steps = steps + 1 #to compensate added vertex for arc center
+#             
+#             
+#         vertsLength = len(bm.verts)
+#         bm.verts.ensure_lookup_table()
+#         lastVertIndex = bm.verts[vertsLength - 1].index
+#         
+#         lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
+#         
+#         spinVertices = []
+#         if lastSpinVertIndices.stop <= len(bm.verts): #make sure arc was added to bmesh
+#             spinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
+#             spinVertices = [vStart] + spinVertices
+#         return spinVertices,[spinCenter, spinCenter2, spinAxis, angle, steps, refObjectLocation]
     
     def CalculateRadiusAndAngleForAnglePresetsHalfMode(self, angleEnum, edgeLength):
         if angleEnum == "90":
