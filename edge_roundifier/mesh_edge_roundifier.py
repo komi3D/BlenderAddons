@@ -665,8 +665,6 @@ class EdgeRoundifier(bpy.types.Operator):
         adjust_matrix = self.obj.matrix_parent_inverse
         bm = bmesh.from_edit_mesh(self.obj.data)
         lastVert = len(arcVerts) - 1
-        print ("=+++=")
-        print (len (arcVerts))
         if parameters["drawArcCenters"]:
             lastVert = lastVert - 1 #center gets added as last vert of arc
         v0_old = adjust_matrix  *  arcVerts[0].co.copy()
@@ -815,10 +813,13 @@ class EdgeRoundifier(bpy.types.Operator):
         offset = parameters["offset"]
         translation = offset * perpendicularVector
         
-        bmesh.ops.translate(
-        bm,
-        verts=Verts,
-        vec=translation)
+        try:
+            bmesh.ops.translate(
+            bm,
+            verts=Verts,
+            vec=translation)
+        except ValueError:
+            print ("[Edge Roundifier]: Perpendicular translate value error - multiple vertices in list - try unchecking 'Centers'")
         
         indexes = [v.index for v in Verts] 
         self.sel.refreshMesh(bm, mesh)
@@ -830,10 +831,13 @@ class EdgeRoundifier(bpy.types.Operator):
         offset = parameters["offset2"]
         translation = offset * edgeVector
         
-        bmesh.ops.translate(
-        bm,
-        verts=Verts,
-        vec=translation)
+        try:
+            bmesh.ops.translate(
+            bm,
+            verts=Verts,
+            vec=translation)
+        except ValueError:
+            print ("[Edge Roundifier]: Parallel translate value error - multiple vertices in list - try unchecking 'Centers'")
         
         indexes = [v.index for v in Verts] 
         self.sel.refreshMesh(bm, mesh)
@@ -1006,6 +1010,10 @@ class EdgeRoundifier(bpy.types.Operator):
             alternativeSpinVertices= [ bm.verts[i] for i in alternativeLastSpinVertIndices]
             bothSpinVertices = [v0] + bothSpinVertices + alternativeSpinVertices 
             spinVertices = bothSpinVertices
+            
+        if (parameters["fullCircles"]):
+            v1 = bm.verts.new(v1org.co)
+            spinVertices = spinVertices + [v1]
             
         if (parameters['drawArcCenters']):
             centerVert = bm.verts.new(chosenSpinCenter)
