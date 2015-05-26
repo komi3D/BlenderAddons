@@ -207,8 +207,10 @@ class CalculationHelper:
         distance1 = (Vector(point1) - Vector(point2)).length
         distance2 = (Vector(point2) - Vector(point3)).length
         cos = distance1 / distance2
+        
         if abs(cos) > 1:  # prevents Domain Error
             cos = round(cos)
+        
         alpha = acos(cos)
         return (alpha, degrees(alpha))
 
@@ -324,6 +326,13 @@ class EdgeRoundifier(bpy.types.Operator):
         default = 'Radius',
         description = "Edge Roundifier entry mode")
     
+    rotateCenterItems = [("Spin", "Spin", ""), ("V1", "V1", ""), ("Edge", "Edge", ""), ("V2", "V2", "")]
+    rotateCenter = bpy.props.EnumProperty(
+        items = rotateCenterItems,
+        name = '',
+        default = 'Edge',
+        description = "Rotate center for spin axis rotate")
+    
     arcModeItems = [("FullEdgeArc","Full","Full"),('HalfEdgeArc',"Half","Half")]
     arcMode = bpy.props.EnumProperty(
         items = arcModeItems,
@@ -409,6 +418,7 @@ class EdgeRoundifier(bpy.types.Operator):
         parameters["offset"] = self.offset
         parameters["offset2"] = self.offset2
         parameters["ellipticFactor"] = self.ellipticFactor
+        parameters["rotateCenter"] = self.rotateCenter
         return parameters
 
     def draw(self, context):
@@ -455,7 +465,8 @@ class EdgeRoundifier(bpy.types.Operator):
         
         box = layout.box()
         self.addParameterToUI(box, False, uiPercentage, 'Edge rotate :', 'edgeAngle')
-        self.addParameterToUI(box, False, uiPercentage, 'Spin center rotate:', 'axisAngle')
+        self.addEnumParameterToUI(box, False, uiPercentage, 'Axis rotate center:', 'rotateCenter')
+        self.addParameterToUI(box, False, uiPercentage, 'Axis rotate:', 'axisAngle')
         
         box = layout.box()
         self.addParameterToUI(box, False, uiPercentage, 'Elliptic factor:', 'ellipticFactor')
@@ -561,6 +572,7 @@ class EdgeRoundifier(bpy.types.Operator):
         self.referenceLocation = 'ORG'
         self.planeEnum = 'XY'
         self.edgeScaleCenterEnum = 'CENTER'
+        self.rotateCenter = 'Edge'
         ######
         
     def scaleDuplicatedEdges(self,bm, edges, parameters):
@@ -640,15 +652,7 @@ class EdgeRoundifier(bpy.types.Operator):
                  
     def spinAndPostprocess(self, edge, parameters, bm, mesh, edgeCenter, roundifyParams):
         spinnedVerts,roundifyParamsUpdated = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-        postProcessedArcVerts = self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParamsUpdated, spinnedVerts)
-#         if parameters["bothSides"] and (self.a != 180.0 and self.a != -180.0): #switch arc center and angle
-#             lastSpinCenter = roundifyParams[0]
-#             roundifyParams[0] = roundifyParams[1]
-#             roundifyParams[1] = lastSpinCenter
-#             roundifyParams[3] = -roundifyParams[3]
-#             spinnedVerts2,roundifyParamsUpdated2 = self.drawSpin(edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-#             postProcessedArcVerts2 = self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParamsUpdated2, spinnedVerts2)
-#             postProcessedArcVerts = postProcessedArcVerts + postProcessedArcVerts2
+        postProcessedArcVerts = self.arcPostprocessing(edge, parameters, bm, mesh, roundifyParamsUpdated, spinnedVerts, edgeCenter)
         return postProcessedArcVerts
 
     def rotateArcAroundEdge(self, bm, mesh, arcVerts, parameters):
@@ -718,8 +722,17 @@ class EdgeRoundifier(bpy.types.Operator):
         
     
     
-    def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts):
-        rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, roundifyParams, parameters)
+    def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts, edgeCenter):
+        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+        rotatedVerts = []
+        if parameters["rotateCenter"] == 'Edge':
+            rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, parameters, edgeCenter)
+        elif parameters["rotateCenter"] == 'Spin':
+            rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, parameters, chosenSpinCenter)
+        elif parameters["rotateCenter"] == 'V1':
+            rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, parameters, edge.verts[0].co)
+        elif parameters["rotateCenter"] == 'V2':
+            rotatedVerts = self.rotateArcAroundSpinAxis(bm, mesh, spinnedVerts, parameters, edge.verts[1].co)
         
         offsetVerts = self.offsetArcPerpendicular(bm, mesh, rotatedVerts, edge, parameters)
         offsetVerts2 = self.offsetArcParallel(bm, mesh, offsetVerts, edge, parameters)
@@ -1081,13 +1094,14 @@ class EdgeRoundifier(bpy.types.Operator):
 
 ##################        
         
-    def rotateArcAroundSpinAxis(self, bm, mesh, vertices, roundifyParams, parameters):
-        [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation] = roundifyParams
+    def rotateArcAroundSpinAxis(self, bm, mesh, vertices, parameters, edgeCenter):
+        
         axisAngle = parameters["axisAngle"]
         plane = parameters["plane"]
         #compensate rotation center
         objectLocation = bpy.context.active_object.location
-        center = objectLocation + chosenSpinCenter 
+        #center = objectLocation + chosenSpinCenter 
+        center = objectLocation + edgeCenter
         
         rot = Euler( (0.0, 0.0, radians(axisAngle)),'XYZ' ).to_matrix()
         if plane == YZ:
