@@ -342,7 +342,7 @@ class EdgeRoundifier(bpy.types.Operator):
     
 
     angleItems = [('Other', "Other", "User defined angle"), ('180', "180", "HemiCircle"), ('120', "120", "TriangleCircle"),
-                    ('90', "90", "QuadCircle"), ('60', "60", "HexagonCircle"),
+                    ('90', "90", "QuadCircle"), ('72', "72", "PentagonCircle"), ('60', "60", "HexagonCircle"), 
                     ('45', "45", "OctagonCircle"), ('30', "30", "12-gonCircle")]
 
     angleEnum = bpy.props.EnumProperty(
@@ -1162,6 +1162,8 @@ class EdgeRoundifier(bpy.types.Operator):
             self.a = 120
         elif angleEnum == "90":
             self.a = 90
+        elif angleEnum == "72":
+            self.a = 72
         elif angleEnum == "60":
             self.a = 60
         elif angleEnum == "45":
