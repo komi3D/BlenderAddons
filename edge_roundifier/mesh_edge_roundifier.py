@@ -323,7 +323,7 @@ class EdgeRoundifier(bpy.types.Operator):
     entryMode = bpy.props.EnumProperty(
         items = entryModeItems,
         name = '',
-        default = 'Radius',
+        default = 'Angle',
         description = "Edge Roundifier entry mode")
     
     rotateCenterItems = [("Spin", "Spin", ""), ("V1", "V1", ""), ("Edge", "Edge", ""), ("V2", "V2", "")]
@@ -348,7 +348,7 @@ class EdgeRoundifier(bpy.types.Operator):
     angleEnum = bpy.props.EnumProperty(
         items = angleItems,
         name = '',
-        default = 'Other',
+        default = '180',
         description = "Presets prepare standard angles and calculate proper ray")
 
     refItems = [('ORG', "Origin", "Use Origin Location"), ('CUR', "3D Cursor", "Use 3DCursor Location")
@@ -565,8 +565,8 @@ class EdgeRoundifier(bpy.types.Operator):
         self.ellipticFactor = 0.0
         
         self.workMode = 'Normal'
-        self.entryMode = 'Radius'
-        self.angleEnum = 'Other'
+        self.entryMode = 'Angle'
+        self.angleEnum = '180'
         self.referenceLocation = 'ORG'
         self.planeEnum = 'XY'
         self.edgeScaleCenterEnum = 'CENTER'
