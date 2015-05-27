@@ -978,6 +978,7 @@ class EdgeRoundifier(bpy.types.Operator):
         alternativeLastSpinVertIndices = []
         bothSpinVertices = []
         spinVertices = []
+        alternate = False
         
         if ((angle == pi or angle == -pi) and not parameters["bothSides"]):
 
@@ -1000,6 +1001,7 @@ class EdgeRoundifier(bpy.types.Operator):
         elif (angle != two_pi):  # to allow full circles :)
             if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
                 alternativeLastSpinVertIndices = self.alternateSpin(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+                alternate = True
 
         self.sel.refreshMesh(bm, mesh)
         if alternativeLastSpinVertIndices != []:
@@ -1016,8 +1018,10 @@ class EdgeRoundifier(bpy.types.Operator):
         if (parameters["bothSides"]):
                 #do some more testing here!!!
             if (angle == pi or angle == -pi):
-                alternativeLastSpinVertIndices = self.alternateSpinNoDelete(bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
-            else:
+                alternativeLastSpinVertIndices = self.alternateSpinNoDelete(bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
+            elif alternate:
+                alternativeLastSpinVertIndices = self.alternateSpinNoDelete(bm, mesh, angle, otherSpinCenter, spinAxis, steps, v0, v1org, [])
+            elif not alternate:    
                 alternativeLastSpinVertIndices = self.alternateSpinNoDelete(bm, mesh, -angle, otherSpinCenter, spinAxis, steps, v0, v1org, [])
             bothSpinVertices = [ bm.verts[i] for i in lastSpinVertIndices]
             alternativeSpinVertices= [ bm.verts[i] for i in alternativeLastSpinVertIndices]
@@ -1054,7 +1058,7 @@ class EdgeRoundifier(bpy.types.Operator):
         v0prim = v0
        
         result2 = bmesh.ops.spin(bm, geom = [v0prim], cent = chosenSpinCenter, axis = spinAxis,
-            angle = -angle, steps = steps, use_duplicate = False)
+            angle = angle, steps = steps, use_duplicate = False)
         vertsLength = len(bm.verts)
         bm.verts.ensure_lookup_table()
         lastVertIndex2 = bm.verts[vertsLength - 1].index
