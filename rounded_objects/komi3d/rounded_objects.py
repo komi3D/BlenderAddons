@@ -12,13 +12,18 @@ class RoundedObjects(object):
     '''
     classdocs
     '''
+    XY = 'XY'
+    XZ = 'XZ'
+    YZ = 'YZ'
 
+    selectedPlane = XY
 
     def __init__(self):
         '''
         Constructor
         '''
         pass
+
 
 
     def getCenterVecAndLength(self, c1, c2):
@@ -48,27 +53,53 @@ class RoundedObjects(object):
 
     def calculateTwoIntersections(self, center1, r1, center2, r2):
         center_vec, center_vec_len = self.getCenterVecAndLength(center1, center2)
+        x = None
         if r1 > center_vec_len or r2 > center_vec_len :
-            return self.calculateCircleIntersectionWithLargeOverlap(center1, r1, center2, r2)
+            x = self.getXWhenCirclesHaveLargeOverlap(center_vec_len, r1, r2)
+            return self.calculateCircleIntersectionsWithLargeOverlap(center1, r1, center2, r2, x)
         else:
-            return self.calculateCircleIntersectionWithSmallOverlap(center1, r1, center2, r2)
+            x = self.getXWhenCirclesHaveSmallOverlap(center_vec_len, r1, r2)
+            return self.calculateCircleIntersectionsWithSmallOverlap(center1, r1, center2, r2, x)
 
-    def calculateCircleIntersectionWithLargeOverlap(self, center1, r1, center2, r2):
+    def getXWhenCirclesHaveLargeOverlap(self, A, r1, r2):
+        return ((A ** 2 + r2 ** 2) - r1 ** 2) / (-2 * A)
+
+    def getXWhenCirclesHaveSmallOverlap(self, A, r1, r2):
+        return ((A ** 2 + r2 ** 2) - r1 ** 2) / (2 * A)
+
+
+    def getPerpendicularVector(self, center_vec):
+        if self.selectedPlane == self.XY:
+            return Vector((-center_vec[1], center_vec[0], center_vec[2]))
+        elif self.selectedPlane == self.YZ:
+            return Vector((center_vec[0], -center_vec[2], center_vec[1]))
+        elif self.selectedPlane == self.XZ:
+            return Vector((-center_vec[2], center_vec[1], center_vec[0]))
+
+    def calculateCircleIntersectionsWithLargeOverlap(self, center1, r1, center2, r2, x):
         #
         center_vec, center_vec_len = self.getCenterVecAndLength(center1, center2)
         A = center_vec_len
-        x = ((A ** 2 + r2 ** 2) - r1 ** 2) / (-2 * A)
         h = sqrt(r2 ** 2 - x ** 2)
 
         intersectionX = center2 + center_vec * (x / A)
-        perpendicularVec = Vector((-center_vec[1], center_vec[0], center_vec[2]))  # TODO calculate perpendicular based on selected plane
+        perpendicularVec = self.getPerpendicularVector(center_vec)  # TODO calculate perpendicular based on selected plane
         perpendicularVecLen = perpendicularVec.length
         intersection1 = intersectionX + perpendicularVec * (h / perpendicularVecLen)
         intersection2 = intersectionX - perpendicularVec * (h / perpendicularVecLen)
 
         return [intersection1, intersection2]
 
-
-    def calculateCircleIntersectionWithSmallOverlap(self, center1, r1, center2, r2):
+    def calculateCircleIntersectionsWithSmallOverlap(self, center1, r1, center2, r2, x):
+        #
         center_vec, center_vec_len = self.getCenterVecAndLength(center1, center2)
-        return 222
+        A = center_vec_len
+        h = sqrt(r2 ** 2 - x ** 2)
+
+        intersectionX = center1 + center_vec * ((A - x) / A)
+        perpendicularVec = self.getPerpendicularVector(center_vec)  # TODO calculate perpendicular based on selected plane
+        perpendicularVecLen = perpendicularVec.length
+        intersection1 = intersectionX + perpendicularVec * (h / perpendicularVecLen)
+        intersection2 = intersectionX - perpendicularVec * (h / perpendicularVecLen)
+
+        return [intersection1, intersection2]
