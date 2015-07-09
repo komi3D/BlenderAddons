@@ -3,7 +3,7 @@ Created on 28 cze 2015
 
 @author: Komi
 '''
-from math import fabs, sqrt
+from math import fabs, sqrt, acos, degrees, pi
 
 from mathutils import Vector
 
@@ -55,16 +55,16 @@ class GeometryCalculator(object):
         center_vec, center_vec_len = self.getVectorAndLengthFrom2Points(center1, center2)
         x = None
         if r1 > center_vec_len or r2 > center_vec_len :
-            x = self.getXWhenCirclesHaveLargeOverlap(center_vec_len, r1, r2)
+            x = self._getXWhenCirclesHaveLargeOverlap(center_vec_len, r1, r2)
             return self.calculateCircleIntersectionsWithLargeOverlap(center1, r1, center2, r2, x)
         else:
-            x = self.getXWhenCirclesHaveSmallOverlap(center_vec_len, r1, r2)
+            x = self._getXWhenCirclesHaveSmallOverlap(center_vec_len, r1, r2)
             return self.calculateCircleIntersectionsWithSmallOverlap(center1, r1, center2, r2, x)
 
-    def getXWhenCirclesHaveLargeOverlap(self, A, r1, r2):
+    def _getXWhenCirclesHaveLargeOverlap(self, A, r1, r2):
         return ((A ** 2 + r2 ** 2) - r1 ** 2) / (-2 * A)
 
-    def getXWhenCirclesHaveSmallOverlap(self, A, r1, r2):
+    def _getXWhenCirclesHaveSmallOverlap(self, A, r1, r2):
         return ((A ** 2 + r2 ** 2) - r1 ** 2) / (2 * A)
 
 
@@ -103,3 +103,46 @@ class GeometryCalculator(object):
         intersection2 = intersectionX - perpendicularVec * (h / perpendicularVecLen)
 
         return [intersection1, intersection2]
+
+
+
+
+    def getAngleBetween3Points(self, point1, point2, point3):
+        p2p1Vector, p2p1Length = self.getVectorAndLengthFrom2Points(point2, point1)
+        p1p3Vector, p1p3Length = self.getVectorAndLengthFrom2Points(point1, point3)
+        p2p3Vector, p2p3Length = self.getVectorAndLengthFrom2Points(point2, point3)
+
+        if p2p1Vector.normalized() == p2p3Vector.normalized() :
+            angle = 0.0
+            return angle, angle
+
+        if p2p1Vector.normalized() == p2p3Vector.normalized().negate() :
+            angle = pi
+            return angle, degrees(angle)
+
+        A = p2p1Length
+        B = p2p3Length
+        C = p1p3Length
+
+        y = (A ** 2 + C ** 2 - B ** 2) / (2 * C)
+        x = sqrt(A ** 2 - y ** 2)
+
+        alpha = acos(x / A)
+        beta = acos(x / B)
+        angle = alpha + beta
+        angle = self._adjustAnglePlusOrMinus(point1, point3, p2p1Vector, angle)
+        angleDeg = degrees(angle)
+
+        return (angleDeg, angle)
+
+    def _adjustAnglePlusOrMinus(self, point1, point3, p2p1Vector, angle):
+        MinusVector = self.getPerpendicularVector(p2p1Vector)
+        PlusVector = (-1) * MinusVector
+        P1Plus = point1 + PlusVector
+        P1Minus = point1 + MinusVector
+        P1PlusP3Vector, P1PlusP3Length = self.getVectorAndLengthFrom2Points(P1Plus, point3)
+        P1MinusP3Vector, P1MinusP3Length = self.getVectorAndLengthFrom2Points(P1Minus, point3)
+        if (P1MinusP3Length < P1PlusP3Length):
+            angle = -angle
+        return angle
+

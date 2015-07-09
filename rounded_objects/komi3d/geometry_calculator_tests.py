@@ -265,29 +265,88 @@ class TestGCGetAngleFrom3Points(unittest.TestCase):
     def tearDown(self):
         pass
 
-    # ## 2 intersections
+    def testPositive3PointsAngle120(self):
 
-    def testAlngle(self):
-        # TODO rewrite this test!
-        c2 = Vector((0, 0, 0))
-        r2 = 1.0
-        c1 = Vector((4, 0, 0))
-        r1 = 3.5
+        p1 = Vector((0, 5, 0))
+        p2 = Vector((0, 1, 0))
+        p3 = Vector((5, -2, 0))
 
-        intersection2 = Vector((0.5937, 0.805, 0.0))
-        intersection1 = Vector((0.5937, -0.805, 0.0))
 
-        output = self.geomCalc.getCircleIntersections(c1, r1, c2, r2)
+        angleDeg, angleRad = self.geomCalc.getAngleBetween3Points(p1, p2, p3)
 
-        self.assertEqual(2, len(output))
-        self.assertAlmostEqual(intersection1[0], output[0][0], places = 3)
-        self.assertAlmostEqual(intersection1[1], output[0][1], places = 3)
-        self.assertAlmostEqual(intersection1[2], output[0][2], places = 3)
+        self.assertGreaterEqual(angleDeg, 120)
+        self.assertLessEqual(angleDeg, 130)
 
-        self.assertAlmostEqual(intersection2[0], output[1][0], places = 3)
-        self.assertAlmostEqual(intersection2[1], output[1][1], places = 3)
-        self.assertAlmostEqual(intersection2[2], output[1][2], places = 3)
+    def testNegative3PointsAngle120(self):
 
+        p1 = Vector((0, 5, 0))
+        p2 = Vector((0, 1, 0))
+        p3 = Vector((-5, -2, 0))
+
+
+        angleDeg, angleRad = self.geomCalc.getAngleBetween3Points(p1, p2, p3)
+
+        self.assertLessEqual(angleDeg, -120)
+        self.assertGreaterEqual(angleDeg, -130)
+
+
+    def testNegative3PointsAngle60(self):
+        p1 = Vector((0, 5, 0))
+        p2 = Vector((0, 1, 0))
+        p3 = Vector((-5, 3, 0))
+
+
+        angleDeg, angleRad = self.geomCalc.getAngleBetween3Points(p1, p2, p3)
+
+        self.assertGreaterEqual(angleDeg, -70)
+        self.assertLessEqual(angleDeg, -60)
+
+
+    def testPositive3PointsAngle60(self):
+
+        p1 = Vector((1, 5, 0))
+        p2 = Vector((0, 1, 0))
+        p3 = Vector((5, 2, 0))
+
+
+        angleDeg, angleRad = self.geomCalc.getAngleBetween3Points(p1, p2, p3)
+
+        self.assertGreaterEqual(angleDeg, 60)
+        self.assertLessEqual(angleDeg, 70)
+
+    def test3PointsAngle180(self):
+
+        p1 = Vector((0, 5, 0))
+        p2 = Vector((0, 1, 0))
+        p3 = Vector((0, -6, 0))
+
+
+        angleDeg, angleRad = self.geomCalc.getAngleBetween3Points(p1, p2, p3)
+
+        self.assertEqual(180, angleDeg)
+
+    def test3PointsAngle180Diagonal(self):
+
+        p1 = Vector((3, 3, 0))
+        p2 = Vector((2, 2, 0))
+        p3 = Vector((-6, -6, 0))
+
+
+        angleDeg, angleRad = self.geomCalc.getAngleBetween3Points(p1, p2, p3)
+
+        self.assertAlmostEqual(180.0, angleDeg, places = 3)
+
+
+    def test3PointsAngle0(self):
+
+        p1 = Vector((2, 0, 0))
+        p2 = Vector((5, 0, 0))
+        p3 = Vector((1, 0, 0))
+
+
+        angleDeg, angleRad = self.geomCalc.getAngleBetween3Points(p1, p2, p3)
+
+        self.assertEqual(0, angleDeg)
 
 
 if __name__ == "__main__":
