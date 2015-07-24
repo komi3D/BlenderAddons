@@ -39,9 +39,14 @@ import bpy
 from bpy.props import *
 from komi3d.geometry_calculator import GeometryCalculator
 
+two_pi = 2 * pi
+XY = "XY"
+XZ = "XZ"
+YZ = "YZ"
 
 def addMesh(roundedProfileObject):
     corners = roundedProfileObject.RoundedProfileProps[0].corners
+    connections = roundedProfileObject.RoundedProfileProps[0].connections
 
     mesh = roundedProfileObject.data
     bm = bmesh.new()
@@ -50,23 +55,54 @@ def addMesh(roundedProfileObject):
     for corner in corners:
         drawCornerCircle(corner, bm)
 
-    refreshMesh(bm, mesh)
-
-def refreshMesh(bm, mesh):
-    # bpy.ops.object.mode_set(mode = 'OBJECT')
+    drawConnections(corners, connections, bm)
     bm.to_mesh(mesh)
-    # bpy.ops.object.mode_set(mode = 'EDIT')
-    # bpy.ops.object.mode_set(mode = 'OBJECT')
 
 
 def drawCornerCircle(corner, bm):
     center = Vector((corner.x, corner.y, corner.z))
     startPoint = center + Vector((0, 1, 0)) * corner.radius
     spinAxis = Vector((0, 0, 1))
-    angle = 2 * pi
+    angle = two_pi
     v0 = bm.verts.new(startPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angle, steps = corner.sides, use_duplicate = False)
+
+def drawConnections(corners, connections, bm):
+    c1 = Vector((corners[0].x, corners[0].y, corners[0].z))
+    r1 = corners[0].radius + connections[0].radius
+    c2 = Vector((corners[1].x, corners[1].y, corners[1].z))
+    r2 = corners[1].radius + connections[0].radius
+
+    geomCalc = GeometryCalculator()
+
+    intersections = geomCalc.getCircleIntersections(c1, r1, c2, r2)
+    if intersections == None:
+        return
+
+    center = None
+
+    if len(intersections) == 1:
+        center = intersections[0]
+    elif len(intersections) == 2:
+        if connections[0].center == 'First':
+            center = intersections[0]
+        else:
+            center = intersections[1]
+
+    angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1, center, c2)
+
+    print("============")
+    print ("angle" + str(angleRad))
+    print ("c1 " + str(c1[0]) + " " + str(c1[1]) + " " + str(c1[2]) + " ")
+    print ("center " + str(center[0]) + " " + str(center[1]) + " " + str(center[2]) + " ")
+    print ("c2 " + str(c2[0]) + " " + str(c2[1]) + " " + str(c2[2]) + " ")
+    print("============")
+
+    spinAxis = Vector((0, 0, 1))
+    v0 = bm.verts.new(c2)
+    result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
+                                   angle = angleRad, steps = connections[0].sides, use_duplicate = False)
 
 
 def createRoundedProfile(self, context):
@@ -169,6 +205,13 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
     corners = bpy.props.CollectionProperty(type = CornerProperties)
 
     connections = bpy.props.CollectionProperty(type = ConnectionProperties)
+
+
+    planeEnum = bpy.props.EnumProperty(
+        items = ((XY, XY, "XY Plane (Z=0)"), (YZ, YZ, "YZ Plane (X=0)"), (XZ, XZ, "XZ Plane (Y=0)")),
+        name = '',
+        default = 'XY',
+        description = "Plane used by Edge Roundifier to calculate spin plane of drawn arcs")
 
 
 bpy.utils.register_class(RoundedProfileProperties)

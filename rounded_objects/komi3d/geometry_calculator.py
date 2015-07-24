@@ -38,6 +38,11 @@ class GeometryCalculator(object):
         sumOfRadius = r1 + r2
         differenceOfRadius = fabs(r1 - r2)
 
+        if ((center1 == center2) and (r1 == r2)):
+            return None
+        if center_vec_len == 0:
+            return None
+
         if (sumOfRadius == center_vec_len):  # one intersection
             vec = center1 + center_vec * r1 / center_vec_len
             return [vec]
