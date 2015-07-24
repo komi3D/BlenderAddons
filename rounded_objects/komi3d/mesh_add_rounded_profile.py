@@ -34,17 +34,147 @@ from math import fabs, sqrt, acos, degrees, pi
 
 from mathutils import Vector
 
+import bmesh
 import bpy
 from bpy.props import *
-
 from komi3d.geometry_calculator import GeometryCalculator
 
 
+def addMesh(roundedProfileObject):
+    corners = roundedProfileObject.RoundedProfileProps[0].corners
+
+    mesh = roundedProfileObject.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+
+    for corner in corners:
+        drawCornerCircle(corner, bm)
+
+    refreshMesh(bm, mesh)
+
+def refreshMesh(bm, mesh):
+    # bpy.ops.object.mode_set(mode = 'OBJECT')
+    bm.to_mesh(mesh)
+    # bpy.ops.object.mode_set(mode = 'EDIT')
+    # bpy.ops.object.mode_set(mode = 'OBJECT')
 
 
+def drawCornerCircle(corner, bm):
+    center = Vector((corner.x, corner.y, corner.z))
+    startPoint = center + Vector((0, 1, 0)) * corner.radius
+    spinAxis = Vector((0, 0, 1))
+    angle = 2 * pi
+    v0 = bm.verts.new(startPoint)
+    result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
+                                   angle = angle, steps = corner.sides, use_duplicate = False)
 
 
+def createRoundedProfile(self, context):
+    # deselect all objects
+    for o in bpy.data.objects:
+        o.select = False
 
+    # we create main object and mesh for walls
+    roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
+    roundedProfileObject = bpy.data.objects.new("RoundedProfile", roundedProfileMesh)
+    roundedProfileObject.location = bpy.context.scene.cursor_location
+
+    bpy.context.scene.objects.link(roundedProfileObject)
+    roundedProfileObject.RoundedProfileProps.add()
+    roundedProfileObject.RoundedProfileProps[0].corners.add()
+    roundedProfileObject.RoundedProfileProps[0].corners.add()
+    roundedProfileObject.RoundedProfileProps[0].connections.add()
+    roundedProfileObject.RoundedProfileProps[0].connections.add()
+
+    addMesh(roundedProfileObject)
+    # we select, and activate, main object for the room.
+    roundedProfileObject.select = True
+    bpy.context.scene.objects.active = roundedProfileObject
+
+def addCorner(self, context):
+    print
+    rpp = context.object.RoundedProfileProps[0]
+    print(rpp.numOfCorners)
+    print(rpp.corners)
+    print(rpp.corners[0])
+    for cont in range(len(rpp.corners) - 1, rpp.numOfCorners):
+        rpp.corners.add()
+        rpp.connections.add()
+    updateProfile(self, context)
+
+def updateProfile(self, context):
+    # When we update, the active object is the main object of the room.
+    o = bpy.context.active_object
+    # Now we deselect that room object to not delete it.
+    o.select = False
+    o.data.user_clear()
+    bpy.data.meshes.remove(o.data)
+    roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
+    o.data = roundedProfileMesh
+    o.data.use_fake_user = True
+    # deselect all objects
+    for obj in bpy.data.objects:
+        obj.select = False
+    addMesh(o)
+    # and select, and activate, the main object of the room.
+    o.select = True
+    bpy.context.scene.objects.active = o
+
+
+class CornerProperties(bpy.types.PropertyGroup):
+    x = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Center X', update = updateProfile)
+
+    y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Center Y', update = updateProfile)
+
+    z = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Center Z', update = updateProfile)
+
+    radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 180, default = 0, precision = 1,
+                                description = 'Radius', update = updateProfile)
+
+    sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 100, default = 4,
+                                description = 'Number of sides', update = updateProfile)
+bpy.utils.register_class(CornerProperties)
+
+
+class ConnectionProperties(bpy.types.PropertyGroup):
+    # if line then only sides available??
+    type = bpy.props.EnumProperty(
+        items = (('Arc', "Arc", ""), ('Line', "Line", "")),
+        name = "type", description = "Type of connection", update = updateProfile)
+
+    inout = bpy.props.EnumProperty(
+        items = (('Outside', "Outside", ""), ('Inside', "Inside", "")),
+        name = "inout", description = "Outside or inside connection", update = updateProfile)
+
+    center = bpy.props.EnumProperty(
+        items = (('First', "First", ""), ('Second', "Second", "")),
+        name = "center", description = "Center of spinned connection", update = updateProfile)
+
+
+    radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 0, precision = 1,
+                                description = 'Radius', update = updateProfile)
+
+    sides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 500, default = 4,
+                                description = 'Number of sides in connection', update = updateProfile)
+
+bpy.utils.register_class(ConnectionProperties)
+
+class RoundedProfileProperties(bpy.types.PropertyGroup):
+    numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
+                                description = 'Number of corners', update = addCorner)
+
+    corners = bpy.props.CollectionProperty(type = CornerProperties)
+
+    connections = bpy.props.CollectionProperty(type = ConnectionProperties)
+
+
+bpy.utils.register_class(RoundedProfileProperties)
+bpy.types.Object.RoundedProfileProps = bpy.props.CollectionProperty(type = RoundedProfileProperties)
+
+bpy.types.Object.myProp = bpy.props.IntProperty(name = "myProp", min = 2, max = 100, default = 2)
 
 class AddRoundedProfile(bpy.types.Operator):
     """Add rounded profile"""  # blender will use this as a tooltip for menu items and buttons.
@@ -52,8 +182,47 @@ class AddRoundedProfile(bpy.types.Operator):
     bl_label = "Add rounded profile"  # display name in the interface.
     bl_options = {'REGISTER', 'UNDO'}  # enable undo for the operator.
 
-    corners = bpy.props.IntProperty(name = 'Corners' , min = 2, max = 100, default = 2, precision = 1,
-                                description = 'Number of corners')
+    mySides = bpy.props.IntProperty(name = 'numOfSides' , min = 2, max = 500, default = 4,
+                                description = 'Number of sides in connection')
+
+    def execute(self, context):
+        if bpy.context.mode == "OBJECT":
+            createRoundedProfile(self, context)
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, "RoundedProfile: works only in Object mode")
+            return {'CANCELLED'}
+
+    def draw (self, context):
+        layout = self.layout
+        row = layout.row()
+        row.label('Edit Rounded Profile Parameters in:')
+        row = layout.row()
+        row.label('Tools > Addons > Rounded Profile panel')
+        
+
+    ##### POLL #####
+    @classmethod
+    def poll(cls, context):
+        # return bpy.context.mode == "OBJECT"
+        return True
+    
+class RoundedProfilePanel(bpy.types.Panel):
+    bl_idname = "OBJECT_PT_RoundedProfile"
+    bl_label = "Rounded Profile"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_category = 'Addons'
+
+    @classmethod
+    def poll(cls, context):
+        o = context.object
+        if o is None:
+            return False
+        if 'RoundedProfileProps' not in o:
+            return False
+        else:
+            return True
 
     def draw(self, context):
         o = context.object
@@ -70,12 +239,17 @@ class AddRoundedProfile(bpy.types.Operator):
             properties = o.RoundedProfileProps[0]
             row = layout.row()
             row.prop(properties, 'numOfCorners')
-
             # Corners
-            if properties.numOfCorners > 0:
-                for id in range(0, properties.numOfCorners):
+            numOfCorners = properties.numOfCorners
+            if numOfCorners > 0:
+                for id in range(0, numOfCorners):
                     box = layout.box()
                     self.addCornerToMenu(id + 1, box, properties.corners[id])
+                for id in range(0, numOfCorners):
+                    box = layout.box()
+                    self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
+
+
 
     def addCornerToMenu(self, id, box, corners):
         box.label("Corner " + str(id))
@@ -87,157 +261,36 @@ class AddRoundedProfile(bpy.types.Operator):
         row.prop(corners, 'radius')
         row.prop(corners, 'sides')
 
-
-    def execute(self, context):
-        if bpy.context.mode == "OBJECT":
-            createRoundedProfile(self, context)
-            return {'FINISHED'}
+    def addConnectionToMenu(self, id, box, connections, numOfCorners):
+        if id < numOfCorners:
+            box.label("Connection " + str(id) + "-" + str(id+1))
+        elif id == numOfCorners:
+            box.label("Connection " + str(id) + "-" + str(1))
         else:
-            self.report({'WARNING'}, "RoundedProfile: works only in Object mode")
-            return {'CANCELLED'}
-
-
-        
-
-    ##### POLL #####
-    @classmethod
-    def poll(cls, context):
-        return bpy.context.mode == "OBJECT"
-    
-def addMeshElements(roundedProfileObject):
-    pass
-
-def createRoundedProfile(self, context):
-    # deselect all objects
-    for o in bpy.data.objects:
-        o.select = False
-
-    # we create main object and mesh for walls
-    roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
-    roundedProfileObject = bpy.data.objects.new("RoundedProfile", roundedProfileMesh)
-    roundedProfileObject.location = bpy.context.scene.cursor_location
-    bpy.context.scene.objects.link(roundedProfileObject)
-    roundedProfileObject.RoundedProfileProps.add()
-    roundedProfileObject.RoundedProfileProps[0].corners.add()
-    roundedProfileObject.RoundedProfileProps[0].connections.add()
-
-    addMeshElements(roundedProfileObject)
-    # we select, and activate, main object for the room.
-    roundedProfileObject.select = True
-    bpy.context.scene.objects.active = roundedProfileObject
-    pass
-
-def update_profile(self, context):
-    # When we update, the active object is the main object of the room.
-    o = bpy.context.active_object
-    # Now we deselect that room object to not delete it.
-    o.select = False
-    # Remove walls (mesh of room/active object),
-    o.data.user_clear()
-    bpy.data.meshes.remove(o.data)
-    # and we create a new mesh for the RoundedProfile:
-    roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
-    o.data = roundedProfileMesh
-    o.data.use_fake_user = True
-    # deselect all objects
-    for obj in bpy.data.objects:
-        obj.select = False
-    # Remove children created by this addon:
-#     for child in o.children:
-#         # noinspection PyBroadException
-#         try:
-#             if child["archimesh.room_object"]:
-#                 # noinspection PyBroadException
-#                 try:
-#                     # remove child relationship
-#                     for grandchild in child.children:
-#                         grandchild.parent = None
-#                     # remove modifiers
-#                     for mod in child.modifiers:
-#                         bpy.ops.object.modifier_remove(mod)
-#                 except:
-#                     pass
-#                     # clear data
-#                 child.data.user_clear()
-#                 bpy.data.meshes.remove(child.data)
-#                 child.select = True
-#                 bpy.ops.object.delete()
-#         except:
-#             pass
-            # Finally we create all that again (except main object),
-    addMeshElements(o)
-    # and select, and activate, the main object of the room.
-    o.select = True
-    bpy.context.scene.objects.active = o
-
-
-class CornerProperties(bpy.types.PropertyGroup):
-    x = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center X', update = update_profile)
-
-    y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center Y', update = update_profile)
-
-    z = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center Z', update = update_profile)
-
-    radius = bpy.props.FloatProperty(name = 'r' , min = 0, max = 180, default = 0, precision = 1,
-                                description = 'Radius', update = update_profile)
-
-    sides = bpy.props.IntProperty(name = 'numOfSides' , min = 1, max = 100, default = 4,
-                                description = 'Number of sides', update = update_profile)
-
-bpy.utils.register_class(CornerProperties)
-
-class ConnectionProperties(bpy.types.PropertyGroup):
-    # if line then only sides available??
-    type = bpy.props.EnumProperty(
-        items = (('0', "Arc", ""), ('1', "Line", "")),
-        name = "", description = "Type of connection", update = update_profile)
-
-    inout = bpy.props.EnumProperty(
-        items = (('0', "Inside", ""), ('1', "Outside", "")),
-        name = "", description = "Inside or outside connection", update = update_profile)
-
-    center = bpy.props.EnumProperty(
-        items = (('0', "First", ""), ('1', "Second", "")),
-        name = "", description = "Center of spinned connection", update = update_profile)
-
-
-    radius = bpy.props.FloatProperty(name = 'r' , min = 0, max = 100000, default = 0, precision = 1,
-                                description = 'Radius', update = update_profile)
-
-    sides = bpy.props.IntProperty(name = 'numOfSides' , min = 2, max = 500, default = 4,
-                                description = 'Number of sides in connection', update = update_profile)
-
-
-bpy.utils.register_class(ConnectionProperties)
-
-class RoundedProfileProperties(bpy.types.PropertyGroup):
-    numOfCorners = bpy.props.IntProperty(name = 'NumOfCorners' , min = 2, max = 100, default = 2,
-                                description = 'Number of corners', update = update_profile)
-
-    corners = bpy.props.CollectionProperty(type = CornerProperties)
-
-    connections = bpy.props.CollectionProperty(type = ConnectionProperties)
-
-
-bpy.utils.register_class(RoundedProfileProperties)
-bpy.types.Object.RoundedProfileProps = bpy.props.CollectionProperty(type = RoundedProfileProperties)
-
+            return 
+        row = box.row()
+        row.prop(connections, 'type', expand = True)
+        if connections.type == 'Arc' :
+            row = box.row()
+            row.prop(connections, 'inout', expand = True)
+            row = box.row()
+            row.prop(connections, 'center', expand = True)
+            row = box.row()
+            row.prop(connections, 'radius')
+            row.prop(connections, 'sides')
 
 ################################
 def menu_func(self, context):
     self.layout.operator(AddRoundedProfile.bl_idname, text = bl_info['name'], icon = "PLUGIN")
     
 def register():
-    # bpy.utils.register_class(AddRoundedProfile)
+    bpy.utils.register_class(RoundedProfilePanel)
     bpy.utils.register_module(__name__)
     bpy.types.INFO_MT_mesh_add.append(menu_func)
     pass
 
 def unregister():
-    # bpy.utils.unregister_class(AddRoundedProfile)
+    bpy.utils.unregister_class(RoundedProfilePanel)
     bpy.utils.unregister_module(__name__)
     bpy.types.INFO_MT_mesh_add.remove(menu_func)
     pass
