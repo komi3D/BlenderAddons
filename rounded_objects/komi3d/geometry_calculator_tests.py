@@ -348,6 +348,98 @@ class TestGCGetAngleFrom3Points(unittest.TestCase):
 
         self.assertEqual(0, angleDeg)
 
+#############################################
+
+class ATestGCLineCircleIntersections(unittest.TestCase):
+
+    def setUp(self):
+        self.geomCalc = GeometryCalculator()
+
+    def tearDown(self):
+        pass
+    
+    
+    def testLineABHorizontal(self):
+        
+        p1 = Vector((2, 3, 0))
+        p2 = Vector((5, 3, 0))
+        A, B = self.geomCalc.getCoefficientsForLineThrough2Points(p1, p2)
+        
+        self.assertEqual(0, A)
+        self.assertEqual(3, B)
+
+    def testLineABVertical(self):
+        p1 = Vector((5, 7, 0))
+        p2 = Vector((5, 3, 0))
+        outcome = self.geomCalc.getCoefficientsForLineThrough2Points(p1, p2)
+
+        self.assertEqual(None, outcome)
+    
+    def testLineABDiagonalRise(self):
+        p1 = Vector((2, 4, 0))
+        p2 = Vector((4, 7, 0))
+        A, B = self.geomCalc.getCoefficientsForLineThrough2Points(p1, p2)
+
+        self.assertEqual(1.5, A)
+        self.assertEqual(1, B)
+    
+    def testLineABDiagonalFall(self):
+        p1 = Vector((2, 4, 0))
+        p2 = Vector((4, 1, 0))
+        A, B = self.geomCalc.getCoefficientsForLineThrough2Points(p1, p2)
+
+        self.assertEqual(-1.5, A)
+        self.assertEqual(7, B)
+    
+    def testHorizontalLineCircleIntersect(self):
+        lineAB = [0, 3]
+        c1 = Vector((4, 0, 0))
+        r = 4
+
+        X1, X2 = self.geomCalc.getLineCircleIntersections(lineAB, c1, r)
+
+        self.assertAlmostEqual(1.354, X1[0], places = 3)
+        self.assertAlmostEqual(3, X1[1])
+        self.assertAlmostEqual(6.646, X2[0], places = 3)
+        self.assertAlmostEqual(3, X2[1])
+
+    def testFallingLineCircleIntersect(self):
+        lineAB = [-1.5, 6]
+        c1 = Vector((4, 0, 0))
+        r = 4
+
+        X1, X2 = self.geomCalc.getLineCircleIntersections(lineAB, c1, r)
+
+        self.assertAlmostEqual(1.781, X1[0], places = 3)
+        self.assertAlmostEqual(3.328, X1[1], places = 3)
+        self.assertAlmostEqual(6.219, X2[0], places = 3)
+        self.assertAlmostEqual(-3.328, X2[1], places = 3)
+
+    def testRisingLineCircleIntersect(self):
+        lineAB = [0.66666666, -2.66666666]
+        c1 = Vector((4, 0, 0))
+        r = 4
+
+        X1, X2 = self.geomCalc.getLineCircleIntersections(lineAB, c1, r)
+
+        self.assertAlmostEqual(0.672, X1[0], places = 3)
+        self.assertAlmostEqual(-2.219, X1[1], places = 3)
+        self.assertAlmostEqual(7.328, X2[0], places = 3)
+        self.assertAlmostEqual(2.219, X2[1], places = 3)
+
+    def testHorizontalLineCircleTangency(self):
+
+        lineAB = [0, 4]
+        c1 = Vector((4, 0, 0))
+        r = 4
+
+        X1, X2 = self.geomCalc.getLineCircleIntersections(lineAB, c1, r)
+
+        self.assertAlmostEqual(4, X1[0], places = 3)
+        self.assertAlmostEqual(4, X1[1])
+        self.assertAlmostEqual(4, X2[0], places = 3)
+        self.assertAlmostEqual(4, X2[1])
+
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

@@ -7,6 +7,7 @@ from math import fabs, sqrt, acos, degrees, pi
 
 from mathutils import Vector
 
+LINE_TOLERANCE = 0.0001
 
 class GeometryCalculator(object):
     '''
@@ -150,4 +151,103 @@ class GeometryCalculator(object):
         if (P1MinusP3Length < P1PlusP3Length):
             angle = -angle
         return angle
+
+    def getCoefficientsForLineThrough2Points(self, point1, point2):
+        x1, y1, z1 = point1
+        x2, y2, z2 = point2
+
+        # mapping x1,x2, y1,y2 to proper values based on plane
+        if self.selectedPlane == self.YZ:
+            x1 = y1
+            x2 = y2
+            y1 = z1
+            y2 = z2
+        if self.selectedPlane == self.XZ:
+            y1 = z1
+            y2 = z2
+
+        # Further calculations the same as for XY plane
+        xabs = abs(x2 - x1)
+        yabs = abs(y2 - y1)
+
+        if xabs <= LINE_TOLERANCE:
+            return None  # this means line x = edgeCenterX
+        if yabs <= LINE_TOLERANCE:
+            A = 0
+            B = y1
+            return A, B
+        A = (y2 - y1) / (x2 - x1)
+        B = y1 - (A * x1)
+        return (A, B)
+
+    def getLineCircleIntersections(self, lineAB, circleMidPoint, radius):
+        # (x - a)**2 + (y - b)**2 = r**2 - circle equation
+        # y = A*x + B - line equation
+        # f * x**2 + g * x + h = 0 - quadratic equation
+        A, B = lineAB
+        a, b, c = circleMidPoint
+        f = 1 + (A ** 2)
+        g = -2 * a + 2 * A * B - 2 * A * b
+        h = (B ** 2) - 2 * b * B - (radius ** 2) + (a ** 2) + (b ** 2)
+        coef = [f, g, h]
+        roots = self.getQuadraticRoots(coef)
+        if roots != None:
+            x1 = roots[0]
+            x2 = roots[1]
+            point1 = [x1, A * x1 + B]
+            point2 = [x2, A * x2 + B]
+            return [point1, point2]
+        else:
+            return None
+
+    def getLineCircleIntersectionsWhenXPerpendicular(self, verticalLinePoint, circleMidPoint, radius):
+        # (x - a)**2 + (y - b)**2 = r**2 - circle equation
+        # x = xValue - line equation
+        # f * x**2 + g * x + h = 0 - quadratic equation
+        xValue = verticalLinePoint[0]
+        if self.selectedPlane == self.YZ:
+            xValue = verticalLinePoint[1]
+        if self.selectedPlane == self.XZ:
+            xValue = verticalLinePoint[0]
+
+        a, b = circleMidPoint
+        f = 1
+        g = -2 * b
+        h = (a ** 2) + (b ** 2) + (xValue ** 2) - 2 * a * xValue - (radius ** 2)
+        coef = [f, g, h]
+        roots = self.getQuadraticRoots(coef)
+        if roots != None:
+            y1 = roots[0]
+            y2 = roots[1]
+            point1 = [xValue, y1]
+            point2 = [xValue, y2]
+            return [point1, point2]
+        else:
+            return None
+
+    def getLineCoefficientsPerpendicularToVectorInPoint(self, point, vector):
+        x, y, z = point
+        xVector, yVector, zVector = vector
+        destinationPoint = (x + yVector, y - xVector, z)
+        if self.selectedPlane == self.YZ:
+            destinationPoint = (x , y + zVector, z - yVector)
+        if self.selectedPlane == self.XZ:
+            destinationPoint = (x + zVector, y, z - xVector)
+        return self.getCoefficientsForLineThrough2Points(point, destinationPoint)
+
+    def getQuadraticRoots(self, coef):
+        if len(coef) != 3:
+            return NaN
+        else:
+            a, b, c = coef
+            delta = b ** 2 - 4 * a * c
+            if delta == 0:
+                x = -b / (2 * a)
+                return (x, x)
+            elif delta < 0:
+                return None
+            else :
+                x1 = (-b - sqrt(delta)) / (2 * a)
+                x2 = (-b + sqrt(delta)) / (2 * a)
+                return (x1, x2)
 
