@@ -440,6 +440,13 @@ class ATestGCLineCircleIntersections(unittest.TestCase):
         self.assertAlmostEqual(4, X2[0], places = 3)
         self.assertAlmostEqual(4, X2[1])
 
+    def testGetCloserPointToRefPoint(self):
+        points = [Vector((1, 3, 0)), Vector((4, 9, 0)) ]
+        refCenter = Vector ((-1, -1, 0))
+        p = self.geomCalc.getCloserPointToRefPoint(points, refCenter)
+
+        self.assertEqual(p, points[0])
+
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

@@ -251,3 +251,12 @@ class GeometryCalculator(object):
                 x2 = (-b + sqrt(delta)) / (2 * a)
                 return (x1, x2)
 
+    def getCloserPointToRefPoint(self, points, refCenter):
+        closestPoint = None
+        lowestLength = None
+        for point in points:
+            currentVector, currentLength = self.getVectorAndLengthFrom2Points(point, refCenter)
+            if (lowestLength == None or currentLength < lowestLength):
+                lowestLength = currentLength
+                closestPoint = point
+        return closestPoint

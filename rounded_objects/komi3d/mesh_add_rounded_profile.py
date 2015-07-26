@@ -69,10 +69,13 @@ def drawCornerCircle(corner, bm):
                                    angle = angle, steps = corner.sides, use_duplicate = False)
 
 def drawConnections(corners, connections, bm):
-    c1 = Vector((corners[0].x, corners[0].y, corners[0].z))
-    r1 = corners[0].radius + connections[0].radius
-    c2 = Vector((corners[1].x, corners[1].y, corners[1].z))
-    r2 = corners[1].radius + connections[0].radius
+    drawConnection(corners[0], corners[1], connections[0], bm)
+
+def drawConnection(corner1, corner2, connection, bm):
+    c1 = Vector((corner1.x, corner1.y, corner1.z))
+    r1 = corner1.radius + connection.radius
+    c2 = Vector((corner2.x, corner2.y, corner2.z))
+    r2 = corner1.radius + connection.radius
 
     geomCalc = GeometryCalculator()
 
@@ -85,25 +88,33 @@ def drawConnections(corners, connections, bm):
     if len(intersections) == 1:
         center = intersections[0]
     elif len(intersections) == 2:
-        if connections[0].center == 'First':
+        if connection.center == 'First':
             center = intersections[0]
         else:
             center = intersections[1]
 
-    angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1, center, c2)
 
-    print("============")
-    print ("angle" + str(angleRad))
-    print ("c1 " + str(c1[0]) + " " + str(c1[1]) + " " + str(c1[2]) + " ")
-    print ("center " + str(center[0]) + " " + str(center[1]) + " " + str(center[2]) + " ")
-    print ("c2 " + str(c2[0]) + " " + str(c2[1]) + " " + str(c2[2]) + " ")
-    print("============")
+    c1ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connection.radius)
+    c2ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c2, center, connection.radius)
+
+    print("StartPoints")
+    print(c1ConnectionStartPoint)
+    print(c2ConnectionStartPoint)
+
+    print("---")
+
+    angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
 
     spinAxis = Vector((0, 0, 1))
-    v0 = bm.verts.new(c2)
+    v0 = bm.verts.new(c2ConnectionStartPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
-                                   angle = angleRad, steps = connections[0].sides, use_duplicate = False)
+                                   angle = angleRad, steps = connection.sides, use_duplicate = False)
 
+def getClosestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connectionRadius):
+    lineAB1 = geomCalc.getCoefficientsForLineThrough2Points(cornerCenter, connectionCenter)
+    lineCircleIntersections = geomCalc.getLineCircleIntersections(lineAB1, connectionCenter, connectionRadius)
+    tangencyPoint = geomCalc.getCloserPointToRefPoint(lineCircleIntersections, connectionCenter)
+    return tangencyPoint
 
 def createRoundedProfile(self, context):
     # deselect all objects
@@ -128,20 +139,17 @@ def createRoundedProfile(self, context):
     bpy.context.scene.objects.active = roundedProfileObject
 
 def addCorner(self, context):
-    print
     rpp = context.object.RoundedProfileProps[0]
-    print(rpp.numOfCorners)
-    print(rpp.corners)
-    print(rpp.corners[0])
+#     print(rpp.numOfCorners)
+#     print(rpp.corners)
+#     print(rpp.corners[0])
     for cont in range(len(rpp.corners) - 1, rpp.numOfCorners):
         rpp.corners.add()
         rpp.connections.add()
     updateProfile(self, context)
 
 def updateProfile(self, context):
-    # When we update, the active object is the main object of the room.
     o = bpy.context.active_object
-    # Now we deselect that room object to not delete it.
     o.select = False
     o.data.user_clear()
     bpy.data.meshes.remove(o.data)
@@ -152,7 +160,6 @@ def updateProfile(self, context):
     for obj in bpy.data.objects:
         obj.select = False
     addMesh(o)
-    # and select, and activate, the main object of the room.
     o.select = True
     bpy.context.scene.objects.active = o
 
@@ -211,22 +218,17 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
         items = ((XY, XY, "XY Plane (Z=0)"), (YZ, YZ, "YZ Plane (X=0)"), (XZ, XZ, "XZ Plane (Y=0)")),
         name = '',
         default = 'XY',
-        description = "Plane used by Edge Roundifier to calculate spin plane of drawn arcs")
+        description = "Plane used by addon to calculate plane of drawn arcs")
 
 
 bpy.utils.register_class(RoundedProfileProperties)
 bpy.types.Object.RoundedProfileProps = bpy.props.CollectionProperty(type = RoundedProfileProperties)
-
-bpy.types.Object.myProp = bpy.props.IntProperty(name = "myProp", min = 2, max = 100, default = 2)
 
 class AddRoundedProfile(bpy.types.Operator):
     """Add rounded profile"""  # blender will use this as a tooltip for menu items and buttons.
     bl_idname = "mesh.rounded_profile_add"  # unique identifier for buttons and menu items to reference.
     bl_label = "Add rounded profile"  # display name in the interface.
     bl_options = {'REGISTER', 'UNDO'}  # enable undo for the operator.
-
-    mySides = bpy.props.IntProperty(name = 'numOfSides' , min = 2, max = 500, default = 4,
-                                description = 'Number of sides in connection')
 
     def execute(self, context):
         if bpy.context.mode == "OBJECT":
@@ -340,4 +342,5 @@ def unregister():
 
 if __name__ == "__main__":
     register()
+
 
