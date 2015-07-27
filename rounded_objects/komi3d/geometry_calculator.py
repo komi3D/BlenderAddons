@@ -194,8 +194,9 @@ class GeometryCalculator(object):
         if roots != None:
             x1 = roots[0]
             x2 = roots[1]
-            point1 = [x1, A * x1 + B]
-            point2 = [x2, A * x2 + B]
+            # TODO: handle XZ and YZ
+            point1 = Vector((x1, A * x1 + B, c))
+            point2 = Vector((x2, A * x2 + B, c))
             return [point1, point2]
         else:
             return None
@@ -210,7 +211,7 @@ class GeometryCalculator(object):
         if self.selectedPlane == self.XZ:
             xValue = verticalLinePoint[0]
 
-        a, b = circleMidPoint
+        a, b, c = circleMidPoint
         f = 1
         g = -2 * b
         h = (a ** 2) + (b ** 2) + (xValue ** 2) - 2 * a * xValue - (radius ** 2)
@@ -219,8 +220,8 @@ class GeometryCalculator(object):
         if roots != None:
             y1 = roots[0]
             y2 = roots[1]
-            point1 = [xValue, y1]
-            point2 = [xValue, y2]
+            point1 = Vector((xValue, y1, c))
+            point2 = Vector((xValue, y2, c))
             return [point1, point2]
         else:
             return None

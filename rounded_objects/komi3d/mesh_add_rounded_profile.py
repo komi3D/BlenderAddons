@@ -112,7 +112,13 @@ def drawConnection(corner1, corner2, connection, bm):
 
 def getClosestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connectionRadius):
     lineAB1 = geomCalc.getCoefficientsForLineThrough2Points(cornerCenter, connectionCenter)
-    lineCircleIntersections = geomCalc.getLineCircleIntersections(lineAB1, connectionCenter, connectionRadius)
+    lineCircleIntersections = None
+    if cornerCenter[0] == connectionCenter[0]:
+        lineCircleIntersections = geomCalc.getLineCircleIntersectionsWhenXPerpendicular(cornerCenter, connectionCenter, connectionRadius)
+    else
+        lineCircleIntersections = geomCalc.getLineCircleIntersections(lineAB1, connectionCenter, connectionRadius)
+    if lineCircleIntersections == None:
+        return None
     tangencyPoint = geomCalc.getCloserPointToRefPoint(lineCircleIntersections, connectionCenter)
     return tangencyPoint
 
