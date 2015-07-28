@@ -44,6 +44,17 @@ XY = "XY"
 XZ = "XZ"
 YZ = "YZ"
 
+def removeMesh(roundedProfileObject):
+
+    mesh = roundedProfileObject.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+
+    vertices_select = [f for f in bm.vertices if f.select]
+    bmesh.ops.delete(bm, geom = vertices_select, context = 1)
+
+    bm.to_mesh(mesh)
+
 def addMesh(roundedProfileObject):
     corners = roundedProfileObject.RoundedProfileProps[0].corners
     connections = roundedProfileObject.RoundedProfileProps[0].connections
@@ -54,6 +65,8 @@ def addMesh(roundedProfileObject):
 
     for corner in corners:
         drawCornerCircle(corner, bm)
+
+    bm.to_mesh(mesh)
 
     drawConnections(corners, connections, bm)
     bm.to_mesh(mesh)
@@ -69,13 +82,17 @@ def drawCornerCircle(corner, bm):
                                    angle = angle, steps = corner.sides, use_duplicate = False)
 
 def drawConnections(corners, connections, bm):
-    drawConnection(corners[0], corners[1], connections[0], bm)
+    lastIndex = len(corners) - 1
+    for i in range(lastIndex):
+        drawConnection(corners[i], corners[i + 1], connections[i], bm)
+    drawConnection(corners[lastIndex], corners[0], connections[lastIndex], bm)
+
 
 def drawConnection(corner1, corner2, connection, bm):
     c1 = Vector((corner1.x, corner1.y, corner1.z))
     r1 = corner1.radius + connection.radius
     c2 = Vector((corner2.x, corner2.y, corner2.z))
-    r2 = corner1.radius + connection.radius
+    r2 = corner2.radius + connection.radius
 
     geomCalc = GeometryCalculator()
 
@@ -97,11 +114,13 @@ def drawConnection(corner1, corner2, connection, bm):
     c1ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connection.radius)
     c2ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c2, center, connection.radius)
 
-    print("StartPoints")
-    print(c1ConnectionStartPoint)
-    print(c2ConnectionStartPoint)
-
-    print("---")
+#     print("========")
+#     print("DrawConnection")
+#     print("StartPoints")
+#     print(c1ConnectionStartPoint)
+#     print(c2ConnectionStartPoint)
+#
+#     print("===End DrawConnection=====")
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
 
@@ -115,11 +134,18 @@ def getClosestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connection
     lineCircleIntersections = None
     if cornerCenter[0] == connectionCenter[0]:
         lineCircleIntersections = geomCalc.getLineCircleIntersectionsWhenXPerpendicular(cornerCenter, connectionCenter, connectionRadius)
-    else
+    else:
         lineCircleIntersections = geomCalc.getLineCircleIntersections(lineAB1, connectionCenter, connectionRadius)
     if lineCircleIntersections == None:
         return None
-    tangencyPoint = geomCalc.getCloserPointToRefPoint(lineCircleIntersections, connectionCenter)
+#     print ('------getClosestTangencyPoint---------')
+#     print ('lineCircleIntersections')
+#     print (lineCircleIntersections)
+#     print (cornerCenter)
+
+    tangencyPoint = geomCalc.getCloserPointToRefPoint(lineCircleIntersections, cornerCenter)
+#     print (tangencyPoint)
+#     print ('------END getClosestTangencyPoint---------')
     return tangencyPoint
 
 def createRoundedProfile(self, context):
@@ -146,13 +172,26 @@ def createRoundedProfile(self, context):
 
 def addCorner(self, context):
     rpp = context.object.RoundedProfileProps[0]
-#     print(rpp.numOfCorners)
-#     print(rpp.corners)
-#     print(rpp.corners[0])
-    for cont in range(len(rpp.corners) - 1, rpp.numOfCorners):
-        rpp.corners.add()
-        rpp.connections.add()
+    print('CORNERS Before = ')
+    print(len(rpp.corners))
+    print (rpp.numOfCorners)
+    uiNum = rpp.numOfCorners
+    actualNum = len(rpp.corners)
+    delta = uiNum - actualNum
+
+    if delta > 0:
+        for cont in range(0, delta):
+            rpp.corners.add()
+            rpp.connections.add()
+    elif delta < 0:
+        for cont in range(0, (delta) * (-1)):
+            rpp.corners.remove(actualNum - 1)
+            rpp.connections.remove(actualNum - 1)
     updateProfile(self, context)
+    print('CORNERS after = ')
+    print(len(rpp.corners))
+    print (rpp.numOfCorners)
+    print('==============')
 
 def updateProfile(self, context):
     o = bpy.context.active_object
@@ -162,10 +201,14 @@ def updateProfile(self, context):
     roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
     o.data = roundedProfileMesh
     o.data.use_fake_user = True
-    # deselect all objects
-    for obj in bpy.data.objects:
-        obj.select = False
+#     # deselect all objects
+#     for obj in bpy.data.objects:
+#         obj.select = False
+#
+#    removeMesh(o)
+
     addMesh(o)
+
     o.select = True
     bpy.context.scene.objects.active = o
 
@@ -180,10 +223,10 @@ class CornerProperties(bpy.types.PropertyGroup):
     z = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Center Z', update = updateProfile)
 
-    radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 180, default = 0, precision = 1,
+    radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
                                 description = 'Radius', update = updateProfile)
 
-    sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 100, default = 4,
+    sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 16,
                                 description = 'Number of sides', update = updateProfile)
 bpy.utils.register_class(CornerProperties)
 
@@ -203,10 +246,10 @@ class ConnectionProperties(bpy.types.PropertyGroup):
         name = "center", description = "Center of spinned connection", update = updateProfile)
 
 
-    radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 0, precision = 1,
+    radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 4, precision = 1,
                                 description = 'Radius', update = updateProfile)
 
-    sides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 500, default = 4,
+    sides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 200, default = 8,
                                 description = 'Number of sides in connection', update = updateProfile)
 
 bpy.utils.register_class(ConnectionProperties)
@@ -293,10 +336,10 @@ class RoundedProfilePanel(bpy.types.Panel):
             # Corners
             numOfCorners = properties.numOfCorners
             if numOfCorners > 0:
-                for id in range(0, numOfCorners):
+                for id in range(0, len(properties.corners)):
                     box = layout.box()
                     self.addCornerToMenu(id + 1, box, properties.corners[id])
-                for id in range(0, numOfCorners):
+                for id in range(0, len(properties.connections)):
                     box = layout.box()
                     self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
 
