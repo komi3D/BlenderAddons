@@ -50,8 +50,8 @@ def removeMesh(roundedProfileObject):
     bm = bmesh.new()
     bm.from_mesh(mesh)
 
-    vertices_select = [f for f in bm.vertices if f.select]
-    bmesh.ops.delete(bm, geom = vertices_select, context = 1)
+    selectedVertices = [f for f in bm.vertices if f.select]
+    bmesh.ops.delete(bm, geom = selectedVertices, context = 1)
 
     bm.to_mesh(mesh)
 
@@ -87,8 +87,47 @@ def drawConnections(corners, connections, bm):
         drawConnection(corners[i], corners[i + 1], connections[i], bm)
     drawConnection(corners[lastIndex], corners[0], connections[lastIndex], bm)
 
-
 def drawConnection(corner1, corner2, connection, bm):
+    if connection.inout == 'Outer':
+        drawOuterTangentConnection(corner1, corner2, connection, bm)
+    elif connection.inout == 'Inner':
+        drawInnerTangentConnection(corner1, corner2, connection, bm)
+
+def drawInnerTangentConnection(corner1, corner2, connection, bm):
+    c1 = Vector((corner1.x, corner1.y, corner1.z))
+    r1 = connection.radius - (corner1.radius)
+    c2 = Vector((corner2.x, corner2.y, corner2.z))
+    r2 = connection.radius - (corner2.radius)
+
+    geomCalc = GeometryCalculator()
+
+    intersections = geomCalc.getCircleIntersections(c1, r1, c2, r2)
+    if intersections == None:
+        return
+
+    center = None
+
+    if len(intersections) == 1:
+        center = intersections[0]
+    elif len(intersections) == 2:
+        if connection.center == 'First':
+            center = intersections[0]
+        else:
+            center = intersections[1]
+
+
+    c1ConnectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, corner1.radius)
+    c2ConnectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c2, corner2.radius)
+
+    angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
+
+    spinAxis = Vector((0, 0, 1))
+    v0 = bm.verts.new(c2ConnectionStartPoint)
+    result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
+                                   angle = angleRad, steps = connection.sides, use_duplicate = False)
+    
+    
+def drawOuterTangentConnection(corner1, corner2, connection, bm):
     c1 = Vector((corner1.x, corner1.y, corner1.z))
     r1 = corner1.radius + connection.radius
     c2 = Vector((corner2.x, corner2.y, corner2.z))
@@ -110,17 +149,8 @@ def drawConnection(corner1, corner2, connection, bm):
         else:
             center = intersections[1]
 
-
     c1ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connection.radius)
     c2ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c2, center, connection.radius)
-
-#     print("========")
-#     print("DrawConnection")
-#     print("StartPoints")
-#     print(c1ConnectionStartPoint)
-#     print(c2ConnectionStartPoint)
-#
-#     print("===End DrawConnection=====")
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
 
@@ -129,24 +159,31 @@ def drawConnection(corner1, corner2, connection, bm):
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angleRad, steps = connection.sides, use_duplicate = False)
 
-def getClosestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connectionRadius):
+def getLineCircleIntersections(geomCalc, cornerCenter, connectionCenter, connectionRadius):
     lineAB1 = geomCalc.getCoefficientsForLineThrough2Points(cornerCenter, connectionCenter)
     lineCircleIntersections = None
     if cornerCenter[0] == connectionCenter[0]:
         lineCircleIntersections = geomCalc.getLineCircleIntersectionsWhenXPerpendicular(cornerCenter, connectionCenter, connectionRadius)
     else:
         lineCircleIntersections = geomCalc.getLineCircleIntersections(lineAB1, connectionCenter, connectionRadius)
+    return lineCircleIntersections
+
+def getClosestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connectionRadius):
+    lineCircleIntersections = getLineCircleIntersections(geomCalc, cornerCenter, connectionCenter, connectionRadius)
     if lineCircleIntersections == None:
         return None
-#     print ('------getClosestTangencyPoint---------')
-#     print ('lineCircleIntersections')
-#     print (lineCircleIntersections)
-#     print (cornerCenter)
-
-    tangencyPoint = geomCalc.getCloserPointToRefPoint(lineCircleIntersections, cornerCenter)
-#     print (tangencyPoint)
-#     print ('------END getClosestTangencyPoint---------')
+    
+    tangencyPoint = geomCalc.getClosestPointToRefPoint(lineCircleIntersections, cornerCenter)
     return tangencyPoint
+
+def getFarthestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connectionRadius):
+    lineCircleIntersections = getLineCircleIntersections(geomCalc, connectionCenter, cornerCenter, connectionRadius)
+    if lineCircleIntersections == None:
+        return None
+    
+    tangencyPoint = geomCalc.getFarthestPointToRefPoint(lineCircleIntersections, connectionCenter)
+    return tangencyPoint
+
 
 def createRoundedProfile(self, context):
     # deselect all objects
@@ -238,8 +275,8 @@ class ConnectionProperties(bpy.types.PropertyGroup):
         name = "type", description = "Type of connection", update = updateProfile)
 
     inout = bpy.props.EnumProperty(
-        items = (('Outside', "Outside", ""), ('Inside', "Inside", "")),
-        name = "inout", description = "Outside or inside connection", update = updateProfile)
+        items = (('Outer', "Outer", ""), ('Inner', "Inner", ""), ('Outer-Inner', "Outer-Inner", ""), ('Inner-Outer', "Inner-Outer", "")),
+        name = "inout", description = "Tangency type for the connection", update = updateProfile)
 
     center = bpy.props.EnumProperty(
         items = (('First', "First", ""), ('Second', "Second", "")),
