@@ -231,6 +231,20 @@ def addCorner(self, context):
     print (rpp.numOfCorners)
     print('==============')
 
+def updateCornerAndConnectionProperties(self, context):
+    roundedProfileObject = bpy.context.active_object
+    props = roundedProfileObject.RoundedProfileProps[0]
+    if props.masterCornerEnabled:
+        for c in props.corners:
+            c.radius = props.masterCornerRadius
+            c.sides = props.masterCornerSides
+    if props.masterConnectionEnabled:
+        for c in props.connections:
+            c.radius = props.masterConnectionRadius
+            c.sides = props.masterConnectionSides
+    updateProfile(self, context)
+
+
 def updateProfile(self, context):
     o = bpy.context.active_object
     o.select = False
@@ -239,11 +253,6 @@ def updateProfile(self, context):
     roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
     o.data = roundedProfileMesh
     o.data.use_fake_user = True
-#     # deselect all objects
-#     for obj in bpy.data.objects:
-#         obj.select = False
-#
-#    removeMesh(o)
 
     addMesh(o)
 
@@ -295,6 +304,20 @@ bpy.utils.register_class(ConnectionProperties)
 class RoundedProfileProperties(bpy.types.PropertyGroup):
     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
                                 description = 'Number of corners', update = addCorner)
+
+    masterCornerEnabled = bpy.props.BoolProperty(name = 'Master corner', default = False, update = updateCornerAndConnectionProperties)
+    masterCornerRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
+                                description = 'Master corner radius', update = updateCornerAndConnectionProperties)
+
+    masterCornerSides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 16,
+                                description = 'Number of sides in all corners', update = updateCornerAndConnectionProperties)
+
+    masterConnectionEnabled = bpy.props.BoolProperty(name = 'Master connection', default = False)
+    masterConnectionRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 4, precision = 1,
+                                description = 'Master connection radius', update = updateCornerAndConnectionProperties)
+
+    masterConnectionSides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 200, default = 8,
+                                description = 'Number of sides in all connection', update = updateCornerAndConnectionProperties)
 
     corners = bpy.props.CollectionProperty(type = CornerProperties)
 
@@ -371,27 +394,46 @@ class RoundedProfilePanel(bpy.types.Panel):
             properties = o.RoundedProfileProps[0]
             row = layout.row()
             row.prop(properties, 'numOfCorners')
+            box = layout.box()
+            row = box.row()
+
+            row.prop(properties, 'masterCornerEnabled')
+            if properties.masterCornerEnabled:
+                row = box.row()
+                row.prop(properties, 'masterCornerRadius')
+                row.prop(properties, 'masterCornerSides')
+
+            box = layout.box()
+            row = box.row()
+
+            row.prop(properties, 'masterConnectionEnabled')
+            if properties.masterConnectionEnabled:
+                row = box.row()
+                row.prop(properties, 'masterConnectionRadius')
+                row.prop(properties, 'masterConnectionSides')
             # Corners
             numOfCorners = properties.numOfCorners
             if numOfCorners > 0:
                 for id in range(0, len(properties.corners)):
                     box = layout.box()
-                    self.addCornerToMenu(id + 1, box, properties.corners[id])
-                for id in range(0, len(properties.connections)):
-                    box = layout.box()
-                    self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
+                    self.addCornerToMenu(id + 1, box, properties.corners[id],properties.masterCornerEnabled)
+                if not properties.masterConnectionEnabled:
+                    for id in range(0, len(properties.connections)):
+                        box = layout.box()
+                        self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
 
 
 
-    def addCornerToMenu(self, id, box, corners):
+    def addCornerToMenu(self, id, box, corners, master):
         box.label("Corner " + str(id))
         row = box.row()
         row.prop(corners, 'x')
         row.prop(corners, 'y')
         row.prop(corners, 'z')
-        row = box.row()
-        row.prop(corners, 'radius')
-        row.prop(corners, 'sides')
+        if not master:
+            row = box.row()
+            row.prop(corners, 'radius')
+            row.prop(corners, 'sides')
 
     def addConnectionToMenu(self, id, box, connections, numOfCorners):
         if id < numOfCorners:
