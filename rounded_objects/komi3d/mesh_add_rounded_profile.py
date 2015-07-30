@@ -111,9 +111,9 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
         center = intersections[0]
     elif len(intersections) == 2:
         if connection.center == 'First':
-            center = intersections[0]
-        else:
             center = intersections[1]
+        else:
+            center = intersections[0]
 
 
     c1ConnectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, corner1.radius)
@@ -159,29 +159,30 @@ def drawOuterTangentConnection(corner1, corner2, connection, bm):
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angleRad, steps = connection.sides, use_duplicate = False)
 
-def getLineCircleIntersections(geomCalc, cornerCenter, connectionCenter, connectionRadius):
-    lineAB1 = geomCalc.getCoefficientsForLineThrough2Points(cornerCenter, connectionCenter)
+def getLineCircleIntersections(geomCalc, RefPoint, Center, Radius):
+    lineAB1 = geomCalc.getCoefficientsForLineThrough2Points(RefPoint, Center)
     lineCircleIntersections = None
-    if cornerCenter[0] == connectionCenter[0]:
-        lineCircleIntersections = geomCalc.getLineCircleIntersectionsWhenXPerpendicular(cornerCenter, connectionCenter, connectionRadius)
+    if RefPoint[0] == Center[0]:
+        lineCircleIntersections = geomCalc.getLineCircleIntersectionsWhenXPerpendicular(RefPoint, Center, Radius)
     else:
-        lineCircleIntersections = geomCalc.getLineCircleIntersections(lineAB1, connectionCenter, connectionRadius)
+        lineCircleIntersections = geomCalc.getLineCircleIntersections(lineAB1, Center, Radius)
     return lineCircleIntersections
 
-def getClosestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connectionRadius):
-    lineCircleIntersections = getLineCircleIntersections(geomCalc, cornerCenter, connectionCenter, connectionRadius)
+
+def getClosestTangencyPoint(geomCalc, refPoint, center, radius):
+    lineCircleIntersections = getLineCircleIntersections(geomCalc, refPoint, center, radius)
     if lineCircleIntersections == None:
         return None
     
-    tangencyPoint = geomCalc.getClosestPointToRefPoint(lineCircleIntersections, cornerCenter)
+    tangencyPoint = geomCalc.getClosestPointToRefPoint(lineCircleIntersections, refPoint)
     return tangencyPoint
 
-def getFarthestTangencyPoint(geomCalc, cornerCenter, connectionCenter, connectionRadius):
-    lineCircleIntersections = getLineCircleIntersections(geomCalc, connectionCenter, cornerCenter, connectionRadius)
+def getFarthestTangencyPoint(geomCalc, refPoint, center, radius):
+    lineCircleIntersections = getLineCircleIntersections(geomCalc, refPoint, center, radius)
     if lineCircleIntersections == None:
         return None
     
-    tangencyPoint = geomCalc.getFarthestPointToRefPoint(lineCircleIntersections, connectionCenter)
+    tangencyPoint = geomCalc.getFarthestPointToRefPoint(lineCircleIntersections, refPoint)
     return tangencyPoint
 
 
