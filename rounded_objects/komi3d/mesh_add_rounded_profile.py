@@ -44,6 +44,7 @@ XY = "XY"
 XZ = "XZ"
 YZ = "YZ"
 
+# TODO Probably to remove function removeMesh
 def removeMesh(roundedProfileObject):
 
     mesh = roundedProfileObject.data
@@ -55,21 +56,54 @@ def removeMesh(roundedProfileObject):
 
     bm.to_mesh(mesh)
 
+
+def drawModeCorners(corners, mesh, bm):
+    for corner in corners:
+        drawCornerCircle(corner, bm)
+    bm.to_mesh(mesh)
+
+def drawModeConnections(corners, connections, mesh, bm):
+    drawConnections(corners, connections, bm)
+    bm.to_mesh(mesh)
+
+
+def drawModeBoth(corners, connections, mesh, bm):
+    drawModeCorners(corners, mesh, bm)
+    drawConnections(corners, connections, bm)
+    bm.to_mesh(mesh)
+
+def drawModeMergedResult(corners, connections, mesh, bm):
+    drawConnections(corners, connections, bm)
+    for corner in corners:
+        drawCornerAsArc(corner, bm)
+
+    bm.to_mesh(mesh)
+
+    selectedVerts = [f for f in bm.verts]
+    bmesh.ops.remove_doubles(bm, verts = selectedVerts, dist = 0.001)
+
+    bm.to_mesh(mesh)
+
+
+
 def addMesh(roundedProfileObject):
     corners = roundedProfileObject.RoundedProfileProps[0].corners
     connections = roundedProfileObject.RoundedProfileProps[0].connections
+    drawMode = roundedProfileObject.RoundedProfileProps[0].drawMode
 
     mesh = roundedProfileObject.data
     bm = bmesh.new()
     bm.from_mesh(mesh)
 
-    for corner in corners:
-        drawCornerCircle(corner, bm)
-
-    bm.to_mesh(mesh)
-
-    drawConnections(corners, connections, bm)
-    bm.to_mesh(mesh)
+    # 'Corners', 'Connections', 'Both', 'Merged result'
+    if drawMode == 'Corners':
+        drawModeCorners(corners, mesh, bm)
+    elif drawMode == 'Connections':
+        drawModeConnections(corners, connections, mesh, bm)
+    elif drawMode == 'Both':
+        drawModeBoth(corners, connections, mesh, bm)
+    elif drawMode == 'Merged result':
+        drawModeMergedResult(corners, connections, mesh, bm)
 
 
 def drawCornerCircle(corner, bm):
@@ -77,6 +111,17 @@ def drawCornerCircle(corner, bm):
     startPoint = center + Vector((0, 1, 0)) * corner.radius
     spinAxis = Vector((0, 0, 1))
     angle = two_pi
+    v0 = bm.verts.new(startPoint)
+    result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
+                                   angle = angle, steps = corner.sides, use_duplicate = False)
+def drawCornerAsArc(corner, bm):
+    center = Vector((corner.x, corner.y, corner.z))
+    startPoint = Vector ((corner.startx, corner.starty, corner.startz))
+    endPoint = Vector ((corner.endx, corner.endy, corner.endz))
+
+    geomCalc = GeometryCalculator()
+    angleDeg, angle = geomCalc.getAngleBetween3Points(startPoint, center, endPoint)
+    spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(startPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angle, steps = corner.sides, use_duplicate = False)
@@ -92,6 +137,16 @@ def drawConnection(corner1, corner2, connection, bm):
         drawOuterTangentConnection(corner1, corner2, connection, bm)
     elif connection.inout == 'Inner':
         drawInnerTangentConnection(corner1, corner2, connection, bm)
+
+def assignCornerEndPoint(corner, endPoint):
+    corner.endx = endPoint[0]
+    corner.endy = endPoint[1]
+    corner.endz = endPoint[2]
+
+def assignCornerStartPoint(corner, startPoint):
+    corner.startx = startPoint[0]
+    corner.starty = startPoint[1]
+    corner.startz = startPoint[2]
 
 def drawInnerTangentConnection(corner1, corner2, connection, bm):
     c1 = Vector((corner1.x, corner1.y, corner1.z))
@@ -115,9 +170,10 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
         else:
             center = intersections[0]
 
-
     c1ConnectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, corner1.radius)
     c2ConnectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c2, corner2.radius)
+    assignCornerEndPoint(corner1, c1ConnectionStartPoint)
+    assignCornerStartPoint(corner2, c2ConnectionStartPoint)
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
 
@@ -126,7 +182,8 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angleRad, steps = connection.sides, use_duplicate = False)
     
-    
+
+
 def drawOuterTangentConnection(corner1, corner2, connection, bm):
     c1 = Vector((corner1.x, corner1.y, corner1.z))
     r1 = corner1.radius + connection.radius
@@ -151,6 +208,8 @@ def drawOuterTangentConnection(corner1, corner2, connection, bm):
 
     c1ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connection.radius)
     c2ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c2, center, connection.radius)
+    assignCornerEndPoint(corner1, c1ConnectionStartPoint)
+    assignCornerStartPoint(corner2, c2ConnectionStartPoint)
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
 
@@ -267,6 +326,26 @@ class CornerProperties(bpy.types.PropertyGroup):
     z = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Center Z', update = updateProfile)
 
+    startx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Start X')
+
+    starty = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Start Y')
+
+    startz = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Start Z')
+
+
+    endx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'End X')
+
+    endy = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'End Y')
+
+    endz = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'End Z')
+
+
     radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
                                 description = 'Radius', update = updateProfile)
 
@@ -299,6 +378,11 @@ class ConnectionProperties(bpy.types.PropertyGroup):
 bpy.utils.register_class(ConnectionProperties)
 
 class RoundedProfileProperties(bpy.types.PropertyGroup):
+    drawMode = bpy.props.EnumProperty(
+        items = (('Corners', "Corners", ""), ('Connections', "Connections", ""), ('Both', "Both", ""),
+                 ('Merged result', "Merged result", ""),),
+        name = "drawMode", description = "Mode of drawing the profile", update = updateProfile)
+
     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
                                 description = 'Number of corners', update = addCorner)
 
@@ -431,11 +515,18 @@ class RoundedProfilePanel(bpy.types.Panel):
                     box = layout.box()
                     self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
 
-    def drawProperties(self, o, layout):
-        properties = o.RoundedProfileProps[0]
+
+    def drawGeneralProperties(self, layout, properties):
+        row = layout.row()
+        row.prop(properties, 'drawMode')
         row = layout.row()
         row.prop(properties, 'numOfCorners')
+        return row
 
+    def drawProperties(self, o, layout):
+        properties = o.RoundedProfileProps[0]
+
+        row = self.drawGeneralProperties(layout, properties)
         box, row = self.drawMasterCornerProperties(layout, properties)
         box = self.drawMasterConnection(layout, properties, row, box)
 

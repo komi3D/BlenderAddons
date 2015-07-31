@@ -136,7 +136,7 @@ class GeometryCalculator(object):
         alpha = acos(x / A)
         beta = acos(x / B)
         angle = alpha + beta
-        angle = self._adjustAnglePlusOrMinus(point1, point3, p2p1Vector, angle)
+#         angle = self._adjustAnglePlusOrMinus(point1, point3, p2p1Vector, angle)
         angleDeg = degrees(angle)
 
         return (angleDeg, angle)
