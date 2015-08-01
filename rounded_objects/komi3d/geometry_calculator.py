@@ -136,10 +136,17 @@ class GeometryCalculator(object):
         alpha = acos(x / A)
         beta = acos(x / B)
         angle = alpha + beta
-#         angle = self._adjustAnglePlusOrMinus(point1, point3, p2p1Vector, angle)
+        angle = self._adjustAnglePlusOrMinus(point1, point3, p2p1Vector, angle)
         angleDeg = degrees(angle)
 
         return (angleDeg, angle)
+
+    def getPositiveAngleBetween3Points(self, point1, point2, point3):
+        angleDeg, angle = self.getAngleBetween3Points(point1, point2, point3)
+        if angle < 0:
+            angle = (2 * pi) + angle
+        return degrees(angle), angle
+
 
     def _adjustAnglePlusOrMinus(self, point1, point3, p2p1Vector, angle):
         MinusVector = self.getPerpendicularVector(p2p1Vector)

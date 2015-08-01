@@ -120,11 +120,17 @@ def drawCornerAsArc(corner, bm):
     endPoint = Vector ((corner.endx, corner.endy, corner.endz))
 
     geomCalc = GeometryCalculator()
-    angleDeg, angle = geomCalc.getAngleBetween3Points(startPoint, center, endPoint)
+    angleDeg, angle = geomCalc.getPositiveAngleBetween3Points(startPoint, center, endPoint)
+    print("-----")
+    print("corner arc angle = " + str(angle))
+    print("center = " + str(center))
+    print("startPoint = " + str(startPoint))
+    print("endPoint = " + str(endPoint))
+    print("-----")
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(startPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
-                                   angle = angle, steps = corner.sides, use_duplicate = False)
+                                   angle = -angle, steps = corner.sides, use_duplicate = False)
 
 def drawConnections(corners, connections, bm):
     lastIndex = len(corners) - 1
@@ -176,7 +182,7 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
     assignCornerStartPoint(corner2, c2ConnectionStartPoint)
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
-
+    print("inner Angle = " + str(angleRad))
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(c2ConnectionStartPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
@@ -212,7 +218,7 @@ def drawOuterTangentConnection(corner1, corner2, connection, bm):
     assignCornerStartPoint(corner2, c2ConnectionStartPoint)
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
-
+    print("outer Angle = " + str(angleRad))
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(c2ConnectionStartPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
@@ -379,8 +385,8 @@ bpy.utils.register_class(ConnectionProperties)
 
 class RoundedProfileProperties(bpy.types.PropertyGroup):
     drawMode = bpy.props.EnumProperty(
-        items = (('Corners', "Corners", ""), ('Connections', "Connections", ""), ('Both', "Both", ""),
-                 ('Merged result', "Merged result", ""),),
+        items = (('Merged result', "Merged result", ""), ('Corners', "Corners", ""),
+                  ('Connections', "Connections", ""), ('Both', "Both", ""),),
         name = "drawMode", description = "Mode of drawing the profile", update = updateProfile)
 
     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
