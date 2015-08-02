@@ -44,6 +44,8 @@ XY = "XY"
 XZ = "XZ"
 YZ = "YZ"
 
+defaultZ = 0
+
 # TODO Probably to remove function removeMesh
 def removeMesh(roundedProfileObject):
 
@@ -107,7 +109,7 @@ def addMesh(roundedProfileObject):
 
 
 def drawCornerCircle(corner, bm):
-    center = Vector((corner.x, corner.y, corner.z))
+    center = Vector((corner.x, corner.y, defaultZ))
     startPoint = center + Vector((0, 1, 0)) * corner.radius
     spinAxis = Vector((0, 0, 1))
     angle = two_pi
@@ -115,18 +117,18 @@ def drawCornerCircle(corner, bm):
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angle, steps = corner.sides, use_duplicate = False)
 def drawCornerAsArc(corner, bm):
-    center = Vector((corner.x, corner.y, corner.z))
-    startPoint = Vector ((corner.startx, corner.starty, corner.startz))
-    endPoint = Vector ((corner.endx, corner.endy, corner.endz))
+    center = Vector((corner.x, corner.y, defaultZ))
+    startPoint = Vector ((corner.startx, corner.starty, defaultZ))
+    endPoint = Vector ((corner.endx, corner.endy, defaultZ))
 
     geomCalc = GeometryCalculator()
     angleDeg, angle = geomCalc.getPositiveAngleBetween3Points(startPoint, center, endPoint)
-    print("-----")
-    print("corner arc angle = " + str(angle))
-    print("center = " + str(center))
-    print("startPoint = " + str(startPoint))
-    print("endPoint = " + str(endPoint))
-    print("-----")
+#     print("-----")
+#     print("corner arc angle = " + str(angle))
+#     print("center = " + str(center))
+#     print("startPoint = " + str(startPoint))
+#     print("endPoint = " + str(endPoint))
+#     print("-----")
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(startPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
@@ -147,17 +149,17 @@ def drawConnection(corner1, corner2, connection, bm):
 def assignCornerEndPoint(corner, endPoint):
     corner.endx = endPoint[0]
     corner.endy = endPoint[1]
-    corner.endz = endPoint[2]
+    corner.endz = defaultZ
 
 def assignCornerStartPoint(corner, startPoint):
     corner.startx = startPoint[0]
     corner.starty = startPoint[1]
-    corner.startz = startPoint[2]
+    corner.startz = defaultZ
 
 def drawInnerTangentConnection(corner1, corner2, connection, bm):
-    c1 = Vector((corner1.x, corner1.y, corner1.z))
+    c1 = Vector((corner1.x, corner1.y, defaultZ))
     r1 = connection.radius - (corner1.radius)
-    c2 = Vector((corner2.x, corner2.y, corner2.z))
+    c2 = Vector((corner2.x, corner2.y, defaultZ))
     r2 = connection.radius - (corner2.radius)
 
     geomCalc = GeometryCalculator()
@@ -182,7 +184,7 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
     assignCornerStartPoint(corner2, c2ConnectionStartPoint)
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
-    print("inner Angle = " + str(angleRad))
+#     print("inner Angle = " + str(angleRad))
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(c2ConnectionStartPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
@@ -191,9 +193,9 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
 
 
 def drawOuterTangentConnection(corner1, corner2, connection, bm):
-    c1 = Vector((corner1.x, corner1.y, corner1.z))
+    c1 = Vector((corner1.x, corner1.y, defaultZ))
     r1 = corner1.radius + connection.radius
-    c2 = Vector((corner2.x, corner2.y, corner2.z))
+    c2 = Vector((corner2.x, corner2.y, defaultZ))
     r2 = corner2.radius + connection.radius
 
     geomCalc = GeometryCalculator()
@@ -218,7 +220,7 @@ def drawOuterTangentConnection(corner1, corner2, connection, bm):
     assignCornerStartPoint(corner2, c2ConnectionStartPoint)
 
     angleDeg, angleRad = geomCalc.getAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
-    print("outer Angle = " + str(angleRad))
+#     print("outer Angle = " + str(angleRad))
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(c2ConnectionStartPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
@@ -273,7 +275,7 @@ def createRoundedProfile(self, context):
     roundedProfileObject.select = True
     bpy.context.scene.objects.active = roundedProfileObject
 
-def addCorner(self, context):
+def adjustCornersAndConnections(self, context):
     rpp = context.object.RoundedProfileProps[0]
     uiNum = rpp.numOfCorners
     actualNum = len(rpp.corners)
@@ -316,10 +318,29 @@ def updateProfile(self, context):
     o.data = roundedProfileMesh
     o.data.use_fake_user = True
 
+    refreshTotalSides(o)
     addMesh(o)
-
     o.select = True
     bpy.context.scene.objects.active = o
+
+def refreshTotalSides(roundedProfileObject):
+    corners = roundedProfileObject.RoundedProfileProps[0].corners
+    connections = roundedProfileObject.RoundedProfileProps[0].connections
+    drawMode = roundedProfileObject.RoundedProfileProps[0].drawMode
+
+    sidesAccumulator = 0
+    if drawMode == 'Both' or drawMode == 'Merged result':
+        for c in corners:
+            sidesAccumulator = sidesAccumulator + c.sides
+        for c in connections:
+            sidesAccumulator = sidesAccumulator + c.sides
+    elif drawMode == 'Corners':
+        for c in corners:
+            sidesAccumulator = sidesAccumulator + c.sides
+    elif drawMode == 'Connections':
+        for c in connections:
+            sidesAccumulator = sidesAccumulator + c.sides
+    roundedProfileObject.RoundedProfileProps[0].totalSides = sidesAccumulator
 
 
 class CornerProperties(bpy.types.PropertyGroup):
@@ -329,28 +350,17 @@ class CornerProperties(bpy.types.PropertyGroup):
     y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Center Y', update = updateProfile)
 
-    z = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center Z', update = updateProfile)
-
     startx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Start X')
 
     starty = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Start Y')
 
-    startz = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Start Z')
-
-
     endx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'End X')
 
     endy = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'End Y')
-
-    endz = bpy.props.FloatProperty(name = 'Z' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'End Z')
-
 
     radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
                                 description = 'Radius', update = updateProfile)
@@ -384,13 +394,22 @@ class ConnectionProperties(bpy.types.PropertyGroup):
 bpy.utils.register_class(ConnectionProperties)
 
 class RoundedProfileProperties(bpy.types.PropertyGroup):
+
+    type = bpy.props.EnumProperty(
+        items = (('Polygon', "Polygon", ""), ('Chain', "Chain", ""), ('ClosedChain', "Closed chain", ""),),
+        name = "Type", description = "Type of the profile", update = updateProfile)
+
     drawMode = bpy.props.EnumProperty(
-        items = (('Merged result', "Merged result", ""), ('Corners', "Corners", ""),
-                  ('Connections', "Connections", ""), ('Both', "Both", ""),),
-        name = "drawMode", description = "Mode of drawing the profile", update = updateProfile)
+        items = (('Both', "Both", ""), ('Corners', "Corners", ""),
+                  ('Connections', "Connections", ""), ('Merged result', "Merged result", ""),),
+        name = "Draw mode", description = "Mode of drawing the profile", update = updateProfile)
+
+    totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 100, default = 2,
+                                description = 'Number of sides in the whole profile',)
+
 
     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
-                                description = 'Number of corners', update = addCorner)
+                                description = 'Number of corners', update = adjustCornersAndConnections)
 
     masterCornerEnabled = bpy.props.BoolProperty(name = 'Master corner', default = False, update = updateCornerAndConnectionProperties)
     masterCornerRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
@@ -478,8 +497,6 @@ class RoundedProfilePanel(bpy.types.Panel):
         else:
             return True
 
-
-
     def drawMasterCornerProperties(self, layout, properties):
         box = layout.box()
         row = box.row()
@@ -524,10 +541,18 @@ class RoundedProfilePanel(bpy.types.Panel):
 
     def drawGeneralProperties(self, layout, properties):
         row = layout.row()
+        row.prop(properties, 'type')
+        row = layout.row()
         row.prop(properties, 'drawMode')
         row = layout.row()
         row.prop(properties, 'numOfCorners')
         return row
+
+
+    def drawInfo(self, layout, properties, row):
+        row = layout.row()
+        totalSidesText = "Total sides = " + str(properties.totalSides)
+        row.label(totalSidesText)
 
     def drawProperties(self, o, layout):
         properties = o.RoundedProfileProps[0]
@@ -537,6 +562,7 @@ class RoundedProfilePanel(bpy.types.Panel):
         box = self.drawMasterConnection(layout, properties, row, box)
 
         self.drawCornersAndConnections(layout, properties, box)
+        self.drawInfo(layout, properties, row)
 
     def draw(self, context):
         o = context.object
@@ -559,7 +585,7 @@ class RoundedProfilePanel(bpy.types.Panel):
         row = box.row()
         row.prop(corners, 'x')
         row.prop(corners, 'y')
-        row.prop(corners, 'z')
+
         if not master:
             row = box.row()
             row.prop(corners, 'radius')
