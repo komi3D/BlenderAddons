@@ -113,6 +113,9 @@ def drawCornerAsArc(corner, bm):
 
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(startPoint)
+    if corner.flipAngle:
+        v0 = bm.verts.new(endPoint)
+        angle = two_pi - angle
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = -angle, steps = corner.sides, use_duplicate = False)
 
@@ -363,6 +366,9 @@ class CornerProperties(bpy.types.PropertyGroup):
     endy = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'End Y')
 
+    flipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = updateProfile)
+
+
     radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
                                 description = 'Radius', update = updateProfile)
 
@@ -594,8 +600,11 @@ class RoundedProfilePanel(bpy.types.Panel):
 
         if not master:
             row = box.row()
+            row.prop(corners, 'flipAngle')
+            row = box.row()
             row.prop(corners, 'radius')
             row.prop(corners, 'sides')
+
 
     def addConnectionToMenu(self, id, box, connections, numOfCorners):
         if id < numOfCorners:
