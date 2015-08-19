@@ -104,6 +104,8 @@ def drawCornerCircle(corner, bm):
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angle, steps = corner.sides, use_duplicate = False)
 def drawCornerAsArc(corner, bm):
+    if corner.startx == None or corner.starty == None or corner.endx == None or corner.endy == None:
+        return
     center = Vector((corner.x, corner.y, defaultZ))
     startPoint = Vector ((corner.startx, corner.starty, defaultZ))
     endPoint = Vector ((corner.endx, corner.endy, defaultZ))
@@ -130,14 +132,24 @@ def drawConnection(corner1, corner2, connection, bm):
     drawTangentConnection(corner1, corner2, connection, bm)
 
 def assignCornerEndPoint(corner, endPoint):
-    corner.endx = endPoint[0]
-    corner.endy = endPoint[1]
-    corner.endz = defaultZ
+    if endPoint != None:
+        corner.endx = endPoint[0]
+        corner.endy = endPoint[1]
+        corner.endz = defaultZ
+    else:
+        corner.endx = None
+        corner.endy = None
+        corner.endz = None
 
 def assignCornerStartPoint(corner, startPoint):
-    corner.startx = startPoint[0]
-    corner.starty = startPoint[1]
-    corner.startz = defaultZ
+    if startPoint != None:
+        corner.startx = startPoint[0]
+        corner.starty = startPoint[1]
+        corner.startz = defaultZ
+    else:
+        corner.startx = None
+        corner.starty = None
+        corner.startz = None
 
 def drawInnerTangentConnection(corner1, corner2, connection, bm):
     c1 = Vector((corner1.x, corner1.y, defaultZ))
@@ -167,11 +179,9 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
     assignCornerStartPoint(corner2, c2ConnectionStartPoint)
 
     angleDeg, angleRad = geomCalc.getPositiveAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
-    print("inner Angle = " + str(angleRad))
 
     if connection.flipAngle:
         angleRad = -(2 * pi - angleRad)
-
 
     spinAxis = Vector((0, 0, 1))
     v0 = bm.verts.new(c2ConnectionStartPoint)
@@ -198,9 +208,9 @@ def drawOuterTangentConnection(corner1, corner2, connection, bm):
         center = intersections[0]
     elif len(intersections) == 2:
         if not connection.flipCenter:
-            center = intersections[0]
-        else:
             center = intersections[1]
+        else:
+            center = intersections[0]
 
     c1ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connection.radius)
     c2ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c2, center, connection.radius)
@@ -244,115 +254,144 @@ def getFarthestTangencyPoint(geomCalc, refPoint, center, radius):
     return tangencyPoint
 
 #######################################################################
+class Updater():
+    @staticmethod
+    def addMesh(roundedProfileObject):
+        corners = roundedProfileObject.RoundedProfileProps[0].corners
+        connections = roundedProfileObject.RoundedProfileProps[0].connections
+        drawMode = roundedProfileObject.RoundedProfileProps[0].drawMode
 
-def addMesh(roundedProfileObject):
-    corners = roundedProfileObject.RoundedProfileProps[0].corners
-    connections = roundedProfileObject.RoundedProfileProps[0].connections
-    drawMode = roundedProfileObject.RoundedProfileProps[0].drawMode
+        mesh = roundedProfileObject.data
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
 
-    mesh = roundedProfileObject.data
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
+        drawFunction = StrategyFactory.getDrawStrategy(drawMode)
+        drawFunction(corners, connections, mesh, bm)
 
-    drawFunction = StrategyFactory.getDrawStrategy(drawMode)
-    drawFunction(corners, connections, mesh, bm)
+    @staticmethod
+    def createRoundedProfile(self, context):
+        # deselect all objects
+        for o in bpy.data.objects:
+            o.select = False
 
-def createRoundedProfile(self, context):
-    # deselect all objects
-    for o in bpy.data.objects:
+        # we create main object and mesh for walls
+        roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
+        roundedProfileObject = bpy.data.objects.new("RoundedProfile", roundedProfileMesh)
+        roundedProfileObject.location = bpy.context.scene.cursor_location
+
+        bpy.context.scene.objects.link(roundedProfileObject)
+        roundedProfileObject.RoundedProfileProps.add()
+        roundedProfileObject.RoundedProfileProps[0].corners.add()
+        roundedProfileObject.RoundedProfileProps[0].corners.add()
+        roundedProfileObject.RoundedProfileProps[0].connections.add()
+        roundedProfileObject.RoundedProfileProps[0].connections.add()
+
+        Updater.addMesh(roundedProfileObject)
+        # we select, and activate, main object for the room.
+        roundedProfileObject.select = True
+        bpy.context.scene.objects.active = roundedProfileObject
+
+    @staticmethod
+    def adjustCornersAndConnections(self, context):
+        rpp = context.object.RoundedProfileProps[0]
+        uiNum = rpp.numOfCorners
+        actualNum = len(rpp.corners)
+        delta = uiNum - actualNum
+
+        if delta > 0:
+            for cont in range(0, delta):
+                rpp.corners.add()
+                rpp.connections.add()
+        elif delta < 0:
+            for cont in range(0, (delta) * (-1)):
+                rpp.corners.remove(actualNum - 1)
+                rpp.connections.remove(actualNum - 1)
+        Updater.updateCornerAndConnectionProperties(self, context)
+
+    @staticmethod
+    def updateConnectionsRadius(self, context):
+        roundedProfileObject = bpy.context.active_object
+        props = roundedProfileObject.RoundedProfileProps[0]
+        autoadjust = props.connectionAutoAdjustEnabled
+        if autoadjust:
+            corners = props.corners
+            connections = props.connections
+            lastIndex = len(corners) - 1
+            for i in range(lastIndex):
+                Updater.updateConnectionRadius(corners[i], corners[i + 1], connections[i])
+            Updater.updateConnectionRadius(corners[lastIndex], corners[0], connections[lastIndex])
+        Updater.updateProfile(self, context)
+
+    @staticmethod
+    def updateConnectionRadius(corner1, corner2, connection):
+        c1 = Vector((corner1.x, corner1.y, defaultZ))
+        c2 = Vector((corner2.x, corner2.y, defaultZ))
+        geomCalc = GeometryCalculator()
+        c1c2, c1c2Length = geomCalc.getVectorAndLengthFrom2Points(c1, c2)
+        connection.radius = c1c2Length
+
+    @staticmethod
+    def updateCornerAndConnectionProperties(self, context):
+        roundedProfileObject = bpy.context.active_object
+        props = roundedProfileObject.RoundedProfileProps[0]
+        if props.masterCornerEnabled:
+            for c in props.corners:
+                c.radius = props.masterCornerRadius
+                c.sides = props.masterCornerSides
+                c.flipAngle = props.masterCornerFlipAngle
+        if props.masterConnectionEnabled:
+            for c in props.connections:
+                c.type = props.masterConnectionType
+                c.inout = props.masterConnectionInout
+                c.flipCenter = props.masterConnectionflipCenter
+                c.flipAngle = props.masterConnectionflipAngle
+                c.radius = props.masterConnectionRadius
+                c.sides = props.masterConnectionSides
+        Updater.updateProfile(self, context)
+
+    @staticmethod
+    def updateProfile(self, context):
+        o = bpy.context.active_object
         o.select = False
+        o.data.user_clear()
+        bpy.data.meshes.remove(o.data)
+        roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
+        o.data = roundedProfileMesh
+        o.data.use_fake_user = True
 
-    # we create main object and mesh for walls
-    roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
-    roundedProfileObject = bpy.data.objects.new("RoundedProfile", roundedProfileMesh)
-    roundedProfileObject.location = bpy.context.scene.cursor_location
+        Updater.refreshTotalSides(o)
+        Updater.addMesh(o)
+        o.select = True
+        bpy.context.scene.objects.active = o
 
-    bpy.context.scene.objects.link(roundedProfileObject)
-    roundedProfileObject.RoundedProfileProps.add()
-    roundedProfileObject.RoundedProfileProps[0].corners.add()
-    roundedProfileObject.RoundedProfileProps[0].corners.add()
-    roundedProfileObject.RoundedProfileProps[0].connections.add()
-    roundedProfileObject.RoundedProfileProps[0].connections.add()
+    @staticmethod
+    def refreshTotalSides(roundedProfileObject):
+        corners = roundedProfileObject.RoundedProfileProps[0].corners
+        connections = roundedProfileObject.RoundedProfileProps[0].connections
+        drawMode = roundedProfileObject.RoundedProfileProps[0].drawMode
 
-    addMesh(roundedProfileObject)
-    # we select, and activate, main object for the room.
-    roundedProfileObject.select = True
-    bpy.context.scene.objects.active = roundedProfileObject
+        sidesAccumulator = 0
+        if drawMode == 'Both' or drawMode == 'Merged result':
+            for c in corners:
+                sidesAccumulator = sidesAccumulator + c.sides
+            for c in connections:
+                sidesAccumulator = sidesAccumulator + c.sides
+        elif drawMode == 'Corners':
+            for c in corners:
+                sidesAccumulator = sidesAccumulator + c.sides
+        elif drawMode == 'Connections':
+            for c in connections:
+                sidesAccumulator = sidesAccumulator + c.sides
+        roundedProfileObject.RoundedProfileProps[0].totalSides = sidesAccumulator
 
-def adjustCornersAndConnections(self, context):
-    rpp = context.object.RoundedProfileProps[0]
-    uiNum = rpp.numOfCorners
-    actualNum = len(rpp.corners)
-    delta = uiNum - actualNum
-
-    if delta > 0:
-        for cont in range(0, delta):
-            rpp.corners.add()
-            rpp.connections.add()
-    elif delta < 0:
-        for cont in range(0, (delta) * (-1)):
-            rpp.corners.remove(actualNum - 1)
-            rpp.connections.remove(actualNum - 1)
-    updateCornerAndConnectionProperties(self, context)
-
-
-def updateCornerAndConnectionProperties(self, context):
-    roundedProfileObject = bpy.context.active_object
-    props = roundedProfileObject.RoundedProfileProps[0]
-    if props.masterCornerEnabled:
-        for c in props.corners:
-            c.radius = props.masterCornerRadius
-            c.sides = props.masterCornerSides
-    if props.masterConnectionEnabled:
-        for c in props.connections:
-            c.type = props.masterConnectionType
-            c.inout = props.masterConnectionInout
-            c.flipCenter = props.masterConnectionCenter
-            c.radius = props.masterConnectionRadius
-            c.sides = props.masterConnectionSides
-    updateProfile(self, context)
-
-
-def updateProfile(self, context):
-    o = bpy.context.active_object
-    o.select = False
-    o.data.user_clear()
-    bpy.data.meshes.remove(o.data)
-    roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
-    o.data = roundedProfileMesh
-    o.data.use_fake_user = True
-
-    refreshTotalSides(o)
-    addMesh(o)
-    o.select = True
-    bpy.context.scene.objects.active = o
-
-def refreshTotalSides(roundedProfileObject):
-    corners = roundedProfileObject.RoundedProfileProps[0].corners
-    connections = roundedProfileObject.RoundedProfileProps[0].connections
-    drawMode = roundedProfileObject.RoundedProfileProps[0].drawMode
-
-    sidesAccumulator = 0
-    if drawMode == 'Both' or drawMode == 'Merged result':
-        for c in corners:
-            sidesAccumulator = sidesAccumulator + c.sides
-        for c in connections:
-            sidesAccumulator = sidesAccumulator + c.sides
-    elif drawMode == 'Corners':
-        for c in corners:
-            sidesAccumulator = sidesAccumulator + c.sides
-    elif drawMode == 'Connections':
-        for c in connections:
-            sidesAccumulator = sidesAccumulator + c.sides
-    roundedProfileObject.RoundedProfileProps[0].totalSides = sidesAccumulator
-
+#####################################
 
 class CornerProperties(bpy.types.PropertyGroup):
     x = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center X', update = updateProfile)
+                                description = 'Center X', update = Updater.updateConnectionsRadius)
 
     y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center Y', update = updateProfile)
+                                description = 'Center Y', update = Updater.updateConnectionsRadius)
 
     startx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Start X')
@@ -366,14 +405,14 @@ class CornerProperties(bpy.types.PropertyGroup):
     endy = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'End Y')
 
-    flipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = updateProfile)
+    flipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateProfile)
 
 
     radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
-                                description = 'Radius', update = updateProfile)
+                                description = 'Radius', update = Updater.updateProfile)
 
     sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 16,
-                                description = 'Number of sides', update = updateProfile)
+                                description = 'Number of sides', update = Updater.updateProfile)
 bpy.utils.register_class(CornerProperties)
 
 
@@ -381,22 +420,22 @@ class ConnectionProperties(bpy.types.PropertyGroup):
     # if line then only sides available??
     type = bpy.props.EnumProperty(
         items = (('Arc', "Arc", ""), ('Line', "Line", "")),
-        name = "type", description = "Type of connection", update = updateProfile)
+        name = "type", description = "Type of connection", update = Updater.updateProfile)
 
     inout = bpy.props.EnumProperty(
         items = (('Outer', "Outer", ""), ('Inner', "Inner", ""), ('Outer-Inner', "Outer-Inner", ""), ('Inner-Outer', "Inner-Outer", "")),
-        name = "inout", description = "Tangency type for the connection", update = updateProfile)
+        name = "inout", description = "Tangency type for the connection", update = Updater.updateProfile)
 
-    flipCenter = bpy.props.BoolProperty(name = "Flip Center", default = False, description = "Change center of spinned connection", update = updateProfile)
+    flipCenter = bpy.props.BoolProperty(name = "Flip Center", default = False, description = "Change center of spinned connection", update = Updater.updateProfile)
 
-    flipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = updateProfile)
+    flipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateProfile)
 
 
     radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 4, precision = 1,
-                                description = 'Radius', update = updateProfile)
+                                description = 'Radius', update = Updater.updateProfile)
 
     sides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 200, default = 8,
-                                description = 'Number of sides in connection', update = updateProfile)
+                                description = 'Number of sides in connection', update = Updater.updateProfile)
 
 bpy.utils.register_class(ConnectionProperties)
 
@@ -404,49 +443,49 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
 
     type = bpy.props.EnumProperty(
         items = (('Polygon', "Polygon", ""), ('Chain', "Chain", ""), ('ClosedChain', "Closed chain", ""),),
-        name = "Type", description = "Type of the profile", update = updateProfile)
+        name = "Type", description = "Type of the profile", update = Updater.updateProfile)
 
     drawMode = bpy.props.EnumProperty(
         items = (('Both', "Both", ""), ('Corners', "Corners", ""),
                   ('Connections', "Connections", ""), ('Merged result', "Merged result", ""),),
-        name = "Draw mode", description = "Mode of drawing the profile", update = updateProfile)
+        name = "Draw mode", description = "Mode of drawing the profile", update = Updater.updateProfile)
 
     totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 100, default = 2,
                                 description = 'Number of sides in the whole profile',)
 
 
     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
-                                description = 'Number of corners', update = adjustCornersAndConnections)
+                                description = 'Number of corners', update = Updater.adjustCornersAndConnections)
 
-    masterCornerEnabled = bpy.props.BoolProperty(name = 'Master corner', default = False, update = updateCornerAndConnectionProperties)
+    connectionAutoAdjustEnabled = bpy.props.BoolProperty(name = 'Auto adjust connections', default = False, update = Updater.updateConnectionsRadius)
+
+    masterCornerEnabled = bpy.props.BoolProperty(name = 'Master corner', default = False, update = Updater.updateCornerAndConnectionProperties)
     masterCornerRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
-                                description = 'Master corner radius', update = updateCornerAndConnectionProperties)
+                                description = 'Master corner radius', update = Updater.updateCornerAndConnectionProperties)
 
     masterCornerSides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 16,
-                                description = 'Number of sides in all corners', update = updateCornerAndConnectionProperties)
+                                description = 'Number of sides in all corners', update = Updater.updateCornerAndConnectionProperties)
+    masterCornerFlipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateCornerAndConnectionProperties)
+
 
     masterConnectionEnabled = bpy.props.BoolProperty(name = 'Master connection', default = False)
     masterConnectionType = bpy.props.EnumProperty(
         items = (('Arc', "Arc", ""), ('Line', "Line", "")),
-        name = "type", description = "Type of connection", update = updateCornerAndConnectionProperties)
+        name = "type", description = "Type of connection", update = Updater.updateCornerAndConnectionProperties)
 
     masterConnectionInout = bpy.props.EnumProperty(
         items = (('Outer', "Outer", ""), ('Inner', "Inner", ""), ('Outer-Inner', "Outer-Inner", ""), ('Inner-Outer', "Inner-Outer", "")),
-        name = "inout", description = "Tangency type for the connection", update = updateCornerAndConnectionProperties)
+        name = "inout", description = "Tangency type for the connection", update = Updater.updateCornerAndConnectionProperties)
 
-    masterConnectionflipCenter = bpy.props.BoolProperty(name = "Flip Center", default = False, description = "Change center of spinned connections", update = updateProfile)
+    masterConnectionflipCenter = bpy.props.BoolProperty(name = "Flip Center", default = False, description = "Change center of spinned connections", update = Updater.updateCornerAndConnectionProperties)
 
-    masterConnectionflipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = updateProfile)
-
-    masterConnectionCenter = bpy.props.EnumProperty(
-        items = (('First', "First", ""), ('Second', "Second", "")),
-        name = "flipCenter", description = "Center of spinned connection", update = updateCornerAndConnectionProperties)
+    masterConnectionflipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateCornerAndConnectionProperties)
 
     masterConnectionRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 4, precision = 1,
-                                description = 'Master connection radius', update = updateCornerAndConnectionProperties)
+                                description = 'Master connection radius', update = Updater.updateCornerAndConnectionProperties)
 
     masterConnectionSides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 200, default = 8,
-                                description = 'Number of sides in all connection', update = updateCornerAndConnectionProperties)
+                                description = 'Number of sides in all connection', update = Updater.updateCornerAndConnectionProperties)
 
     corners = bpy.props.CollectionProperty(type = CornerProperties)
 
@@ -471,7 +510,7 @@ class AddRoundedProfile(bpy.types.Operator):
 
     def execute(self, context):
         if bpy.context.mode == "OBJECT":
-            createRoundedProfile(self, context)
+            Updater.createRoundedProfile(self, context)
             return {'FINISHED'}
         else:
             self.report({'WARNING'}, "RoundedProfile: works only in Object mode")
@@ -513,6 +552,7 @@ class RoundedProfilePanel(bpy.types.Panel):
         row = box.row()
         row.prop(properties, 'masterCornerEnabled')
         if properties.masterCornerEnabled:
+            row.prop(properties, 'masterCornerFlipAngle')
             row = box.row()
             row.prop(properties, 'masterCornerRadius')
             row.prop(properties, 'masterCornerSides')
@@ -530,11 +570,13 @@ class RoundedProfilePanel(bpy.types.Panel):
                 row = box.row()
                 row.prop(properties, 'masterConnectionInout', expand=True)
                 row = box.row()
-                row.prop(properties, 'masterConnectionflipCenter')
-                row.prop(properties, 'masterConnectionflipAngle')
-                row = box.row()
                 row.prop(properties, 'masterConnectionRadius')
                 row.prop(properties, 'masterConnectionSides')
+                row = box.row()
+                row.prop(properties, 'masterConnectionflipCenter')
+                row.prop(properties, 'masterConnectionflipAngle')
+
+
         return box
 
 
@@ -558,6 +600,8 @@ class RoundedProfilePanel(bpy.types.Panel):
         row.prop(properties, 'drawMode')
         row = layout.row()
         row.prop(properties, 'numOfCorners')
+        row = layout.row()
+        row.prop(properties, 'connectionAutoAdjustEnabled')
         return row
 
 
@@ -593,14 +637,15 @@ class RoundedProfilePanel(bpy.types.Panel):
 
 
     def addCornerToMenu(self, id, box, corners, master):
-        box.label("Corner " + str(id))
+        row = box.row()
+        row.label("Corner " + str(id))
+        if not master:
+            row.prop(corners, 'flipAngle')
         row = box.row()
         row.prop(corners, 'x')
         row.prop(corners, 'y')
 
         if not master:
-            row = box.row()
-            row.prop(corners, 'flipAngle')
             row = box.row()
             row.prop(corners, 'radius')
             row.prop(corners, 'sides')
@@ -619,11 +664,11 @@ class RoundedProfilePanel(bpy.types.Panel):
             row = box.row()
             row.prop(connections, 'inout', expand = True)
             row = box.row()
-            row.prop(connections, 'flipCenter')
-            row.prop(connections, 'flipAngle')
-            row = box.row()
             row.prop(connections, 'radius')
             row.prop(connections, 'sides')
+            row = box.row()
+            row.prop(connections, 'flipCenter')
+            row.prop(connections, 'flipAngle')
 
 ################################
 def menu_func(self, context):
