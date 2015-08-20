@@ -8,7 +8,7 @@ import unittest
 
 from mathutils import Vector
 
-from komi3d.geometry_calculator import GeometryCalculator
+from roundedprofile.geometry_calculator import GeometryCalculator
 
 
 class TestGCCircleIntersections(unittest.TestCase):

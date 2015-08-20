@@ -1,1 +1,0 @@
-copy "y:\GIT-repository\BlenderAddons\rounded_objects\komi3d\mesh_add_rounded_profile.py" "c:\Users\Komi\AppData\Roaming\Blender Foundation\Blender\2.74\scripts\addons\mesh_add_rounded_profile.py"
