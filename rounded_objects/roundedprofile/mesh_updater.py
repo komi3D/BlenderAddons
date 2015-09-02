@@ -90,6 +90,14 @@ class Updater():
         c1c2, c1c2Length = geomCalc.getVectorAndLengthFrom2Points(c1, c2)
         connection.radius = c1c2Length
 
+    # TODO - think it through how and when to update alpha and radius and when to update X and Y??? what about reference angular and reference XY
+    @staticmethod
+    def updateCoordinates(self, context):
+        roundedProfileObject = bpy.context.active_object
+        corners = roundedProfileObject.RoundedProfileProps[0].corners
+
+
+        Updater.updateConnectionsRadius(self, context)
     @staticmethod
     def updateCornerAndConnectionProperties(self, context):
         roundedProfileObject = bpy.context.active_object

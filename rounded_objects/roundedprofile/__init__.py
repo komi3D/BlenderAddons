@@ -34,7 +34,7 @@ bl_info = {
 import os
 import sys
 
-TESTS = False
+TESTS = True
 
 if TESTS == False:
     import bpy
