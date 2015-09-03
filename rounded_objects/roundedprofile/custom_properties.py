@@ -16,16 +16,16 @@ YZ = 'YZ'
 
 class CornerProperties(bpy.types.PropertyGroup):
     x = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center X', update = Updater.updateCoordinates)
+                                description = 'Center X', update = Updater.updateCoordinatesOnCoordChange)
 
     y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center Y', update = Updater.updateCoordinates)
+                                description = 'Center Y', update = Updater.updateCoordinatesOnCoordChange)
 
     coordAngle = bpy.props.FloatProperty(name = 'Coord angle' , min = 0, max = 360, default = 0, precision = 1,
-                                description = 'Angular coordinate angle', update = Updater.updateCoordinates)
+                                description = 'Angular coordinate angle', update = Updater.updateCoordinatesOnCoordChange)
 
     coordRadius = bpy.props.FloatProperty(name = 'Coord radius' , min = 0, max = 100000, default = 0, precision = 1,
-                                description = 'Angular coordinate radius', update = Updater.updateCoordinates)
+                                description = 'Angular coordinate radius', update = Updater.updateCoordinatesOnCoordChange)
 
     startx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Start X')
@@ -87,7 +87,7 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
     coordSystem = bpy.props.EnumProperty(
         items = (('XY', "XY", ""), ('Angular', "Angular", ""),
                   ('PreviousRefXY', "PreviousRefXY", ""), ('PreviousRefAngular', "PreviousRefAngular", ""),),
-        name = "Draw mode", description = "Mode of entering corner coordinates", update = Updater.updateCoordinates)
+        name = "Coordinates", description = "Mode of entering corner coordinates", update = Updater.updateCoordinatesOnCoordSystemChange)
 
     totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 100, default = 2,
                                 description = 'Number of sides in the whole profile',)

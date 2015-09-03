@@ -92,12 +92,23 @@ class Updater():
 
     # TODO - think it through how and when to update alpha and radius and when to update X and Y??? what about reference angular and reference XY
     @staticmethod
-    def updateCoordinates(self, context):
+    def updateCoordinatesOnCoordSystemChange(self, context):
         roundedProfileObject = bpy.context.active_object
         corners = roundedProfileObject.RoundedProfileProps[0].corners
+        coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
+        converterToNewCoords = StrategyFactory.getConverterOnCoordsSystemChange(coordSystem)
+        converterToNewCoords(corners)
+        Updater.updateProfile(self, context)
 
+    @staticmethod
+    def updateCoordinatesOnCoordChange(selfself, context):
+        roundedProfileObject = bpy.context.active_object
+        corners = roundedProfileObject.RoundedProfileProps[0].corners
+        coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
+        converterToXY = StrategyFactory.getConverterOnCoordsChange(coordSystem)
+        converterToXY(corners)
+        Updater.updateProfile(self, context)
 
-        Updater.updateConnectionsRadius(self, context)
     @staticmethod
     def updateCornerAndConnectionProperties(self, context):
         roundedProfileObject = bpy.context.active_object
@@ -173,6 +184,52 @@ class StrategyFactory():
             return drawInnerTangentConnection
         # TODO: add for lines, out-in and in-out
 
+
+    @staticmethod
+    def getConverterOnCoordsSystemChange(coords):
+        if coords == 'XY':
+            return convertXYFake
+        elif coords == 'Angular':
+            return convertFromXYToGlobalAngular
+        elif coords == 'PreviousRefXY':
+            return convertFromXYToDxDy
+        elif coords == 'PreviousRefAngular':
+            return convertFromXYToRefAngular
+
+    @staticmethod
+    def updateCoordinatesOnCoordChange(coords):
+        if coords == 'XY':
+            return convertXYFake
+        elif coords == 'Angular':
+            return convertFromGlobalAngularToXY
+        elif coords == 'PreviousRefXY':
+            return convertFromDxDyToXY
+        elif coords == 'PreviousRefAngular':
+            return convertFromRefAngularToXY
+
+def convertXYFake(corners):
+    pass
+
+# TODO:
+def convertFromXYToGlobalAngular(corners):
+    pass
+
+def convertFromXYToDxDy(corners):
+    pass
+
+def convertFromXYToRefAngular(corners):
+    pass
+
+def convertFromGlobalAngularToXY(corners):
+    pass
+
+def convertFromDxDyToXY(corners):
+    pass
+
+def convertFromRefAngularToXY(corners):
+    pass
+
+# ## 'XY', 'Angular', 'PreviousRefXY','PreviousRefAngular'
 
 def drawModeCorners(corners, connections, mesh, bm):
     for corner in corners:

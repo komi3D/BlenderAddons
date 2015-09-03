@@ -88,6 +88,8 @@ class RoundedProfilePanel(bpy.types.Panel):
         row = layout.row()
         row.prop(properties, 'drawMode')
         row = layout.row()
+        row.prop(properties, 'coordSystem')
+        row = layout.row()
         row.prop(properties, 'numOfCorners')
         row = layout.row()
         row.prop(properties, 'connectionAutoAdjustEnabled')
