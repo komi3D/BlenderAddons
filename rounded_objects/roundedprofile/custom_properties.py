@@ -92,7 +92,7 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
 
     coordSystem = bpy.props.EnumProperty(
         items = (('XY', "XY", ""), ('Angular', "Angular", ""),
-                  ('PreviousRefXY', "PreviousRefXY", ""), ('PreviousRefAngular', "PreviousRefAngular", ""),),
+                  ('DeltaXY', "DeltaXY", ""), ('DeltaAngular', "DeltaAngular", ""),),
         name = "Coordinates", description = "Mode of entering corner coordinates", update = Updater.updateCoordinatesOnCoordSystemChange)
 
     coordSystemChangingFlag = bpy.props.BoolProperty(name = "coordSystemChangingFlag", default = False, description = "Helper flag when changing coords system")

@@ -219,9 +219,9 @@ class StrategyFactory():
             return convertXYFake
         elif coords == 'Angular':
             return convertFromXYToGlobalAngular
-        elif coords == 'PreviousRefXY':
+        elif coords == 'DeltaXY':
             return convertFromXYToDxDy
-        elif coords == 'PreviousRefAngular':
+        elif coords == 'DeltaAngular':
             return convertFromXYToRefAngular
 
     @staticmethod
@@ -230,15 +230,14 @@ class StrategyFactory():
             return convertXYFake
         elif coords == 'Angular':
             return convertFromGlobalAngularToXY
-        elif coords == 'PreviousRefXY':
+        elif coords == 'DeltaXY':
             return convertFromDxDyToXY
-        elif coords == 'PreviousRefAngular':
+        elif coords == 'DeltaAngular':
             return convertFromRefAngularToXY
 
 def convertXYFake(corners):
     pass
 
-# TODO:
 def convertFromXYToGlobalAngular(corners):
    # print("convertFromXYToGlobalAngular")
     for c in corners:
@@ -246,6 +245,10 @@ def convertFromXYToGlobalAngular(corners):
         c.coordAngle = degrees(angle)
         c.coordRadius = radius
 
+def convertFromGlobalAngularToXY(corners):
+    # print("convertFromGlobalAngularToXY")
+    for c in corners:
+        c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
 
 def convertFromXYToDxDy(corners):
     lastIndex = len(corners) - 1
@@ -255,14 +258,6 @@ def convertFromXYToDxDy(corners):
         corners[i + 1].dx = corners[i + 1].x - corners[i].x
         corners[i + 1].dy = corners[i + 1].y - corners[i].y
 
-def convertFromXYToRefAngular(corners):
-    pass
-
-def convertFromGlobalAngularToXY(corners):
-    # print("convertFromGlobalAngularToXY")
-    for c in corners:
-        c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
-
 def convertFromDxDyToXY(corners):
     lastIndex = len(corners) - 1
     corners[0].x = corners[0].dx
@@ -271,9 +266,26 @@ def convertFromDxDyToXY(corners):
         corners[i + 1].x = corners[i].x + corners[i + 1].dx
         corners[i + 1].y = corners[i].y + corners[i + 1].dy
 
+# TODO
+def convertFromXYToRefAngular(corners):
+    c0 = corners[0]
+    angle, c0.coordRadius = CoordsConverter.ToAngular(0, 0, c0.x, c0.y)
+    c0.coordAngle = degrees(angle)
+
+    lastIndex = len(corners) - 1
+    for i in range(0, lastIndex):
+        angle, radius = CoordsConverter.ToAngular(corners[i].x, corners[i].y, corners[i + 1].x, corners[i + 1].y)
+        corners[i + 1].coordAngle = degrees(angle)
+        corners[i + 1].coordRadius = radius
 
 def convertFromRefAngularToXY(corners):
-    pass
+    c0 = corners[0]
+    c0.x, c0.y = CoordsConverter.ToXY(0, 0, radians(c0.coordAngle), c0.coordRadius)
+
+    lastIndex = len(corners) - 1
+    for i in range(0, lastIndex):
+        corners[i + 1].x, corners[i + 1].y = CoordsConverter.ToXY(corners[i].x, corners[i].y,
+                                                               radians(corners[i + 1].coordAngle), corners[i + 1].coordRadius)
 
 # ## 'XY', 'Angular', 'PreviousRefXY','PreviousRefAngular'
 

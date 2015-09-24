@@ -134,9 +134,12 @@ class RoundedProfilePanel(bpy.types.Panel):
         elif coordSystem == 'Angular':
             row.prop(corners, 'coordAngle')
             row.prop(corners, 'coordRadius')
-        elif coordSystem == 'PreviousRefXY':
+        elif coordSystem == 'DeltaXY':
             row.prop(corners, 'dx')
             row.prop(corners, 'dy')
+        elif coordSystem == 'DeltaAngular':
+            row.prop(corners, 'coordAngle')
+            row.prop(corners, 'coordRadius')
 
 
     def addCornerToMenu(self, id, box, corners, master, coordSystem):
