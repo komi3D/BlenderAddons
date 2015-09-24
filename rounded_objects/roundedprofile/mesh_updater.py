@@ -178,12 +178,14 @@ class Updater():
         sidesAccumulator = 0
         if drawMode == 'Both' or drawMode == 'Merged result':
             for c in corners:
-                sidesAccumulator = sidesAccumulator + c.sides
+                if c.radius > 0:
+                    sidesAccumulator = sidesAccumulator + c.sides
             for c in connections:
                 sidesAccumulator = sidesAccumulator + c.sides
         elif drawMode == 'Corners':
             for c in corners:
-                sidesAccumulator = sidesAccumulator + c.sides
+                if c.radius > 0:
+                    sidesAccumulator = sidesAccumulator + c.sides
         elif drawMode == 'Connections':
             for c in connections:
                 sidesAccumulator = sidesAccumulator + c.sides
@@ -246,7 +248,12 @@ def convertFromXYToGlobalAngular(corners):
 
 
 def convertFromXYToDxDy(corners):
-    pass
+    lastIndex = len(corners) - 1
+    corners[0].dx = corners[0].x
+    corners[0].dy = corners[0].y
+    for i in range(0, lastIndex):
+        corners[i + 1].dx = corners[i + 1].x - corners[i].x
+        corners[i + 1].dy = corners[i + 1].y - corners[i].y
 
 def convertFromXYToRefAngular(corners):
     pass
@@ -257,7 +264,13 @@ def convertFromGlobalAngularToXY(corners):
         c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
 
 def convertFromDxDyToXY(corners):
-    pass
+    lastIndex = len(corners) - 1
+    corners[0].x = corners[0].dx
+    corners[0].y = corners[0].dy
+    for i in range(0, lastIndex):
+        corners[i + 1].x = corners[i].x + corners[i + 1].dx
+        corners[i + 1].y = corners[i].y + corners[i + 1].dy
+
 
 def convertFromRefAngularToXY(corners):
     pass

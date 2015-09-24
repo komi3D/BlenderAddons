@@ -51,7 +51,7 @@ class CornerProperties(bpy.types.PropertyGroup):
     radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
                                 description = 'Radius', update = Updater.updateProfile)
 
-    sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 16,
+    sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 8,
                                 description = 'Number of sides', update = Updater.updateProfile)
 
 
@@ -74,7 +74,7 @@ class ConnectionProperties(bpy.types.PropertyGroup):
     radius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 4, precision = 1,
                                 description = 'Radius', update = Updater.updateProfile)
 
-    sides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 200, default = 8,
+    sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 4,
                                 description = 'Number of sides in connection', update = Updater.updateProfile)
 
 
@@ -98,7 +98,7 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
     coordSystemChangingFlag = bpy.props.BoolProperty(name = "coordSystemChangingFlag", default = False, description = "Helper flag when changing coords system")
 
 
-    totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 100, default = 2,
+    totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 1000, default = 2,
                                 description = 'Number of sides in the whole profile',)
 
 
@@ -112,7 +112,7 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
     masterCornerRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
                                 description = 'Master corner radius', update = Updater.updateCornerAndConnectionProperties)
 
-    masterCornerSides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 16,
+    masterCornerSides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 8,
                                 description = 'Number of sides in all corners', update = Updater.updateCornerAndConnectionProperties)
     masterCornerFlipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateCornerAndConnectionProperties)
 
@@ -133,7 +133,7 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
     masterConnectionRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 4, precision = 1,
                                 description = 'Master connection radius', update = Updater.updateCornerAndConnectionProperties)
 
-    masterConnectionSides = bpy.props.IntProperty(name = 'Sides' , min = 2, max = 200, default = 8,
+    masterConnectionSides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 4,
                                 description = 'Number of sides in all connection', update = Updater.updateCornerAndConnectionProperties)
 
     corners = bpy.props.CollectionProperty(type = CornerProperties)
