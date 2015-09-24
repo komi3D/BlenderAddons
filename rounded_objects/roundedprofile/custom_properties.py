@@ -96,7 +96,8 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
                                 description = 'Number of corners', update = Updater.adjustCornersAndConnections)
 
-    connectionAutoAdjustEnabled = bpy.props.BoolProperty(name = 'Auto adjust connections', default = False, update = Updater.updateConnectionsRadius)
+    connectionAutoAdjustEnabled = bpy.props.BoolProperty(name = 'Auto adjust connections',
+                                default = False, update = Updater.updateConnectionsRadiusForAutoadjust)
 
     masterCornerEnabled = bpy.props.BoolProperty(name = 'Master corner', default = False, update = Updater.updateCornerAndConnectionProperties)
     masterCornerRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,

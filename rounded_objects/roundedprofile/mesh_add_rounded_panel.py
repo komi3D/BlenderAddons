@@ -23,7 +23,7 @@ class RoundedProfilePanel(bpy.types.Panel):
     bl_idname = "OBJECT_PT_RoundedProfile"
     bl_label = "Rounded Profile"
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
     bl_category = 'Addons'
 
     @classmethod

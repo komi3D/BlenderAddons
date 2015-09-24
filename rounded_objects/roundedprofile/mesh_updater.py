@@ -69,7 +69,7 @@ class Updater():
         Updater.updateCornerAndConnectionProperties(self, context)
 
     @staticmethod
-    def updateConnectionsRadius(self, context):
+    def updateConnectionsRadiusForAutoadjust(self, context):
         roundedProfileObject = bpy.context.active_object
         props = roundedProfileObject.RoundedProfileProps[0]
         autoadjust = props.connectionAutoAdjustEnabled
@@ -88,7 +88,10 @@ class Updater():
         c2 = Vector((corner2.x, corner2.y, defaultZ))
         geomCalc = GeometryCalculator()
         c1c2, c1c2Length = geomCalc.getVectorAndLengthFrom2Points(c1, c2)
-        connection.radius = c1c2Length
+        if (corner1.radius + corner2.radius) <= c1c2Length:
+            connection.radius = c1c2Length
+        else:
+            connection.radius = corner1.radius + corner2.radius
 
     # TODO - think it through how and when to update alpha and radius and when to update X and Y??? what about reference angular and reference XY
     @staticmethod
@@ -101,13 +104,13 @@ class Updater():
         Updater.updateProfile(self, context)
 
     @staticmethod
-    def updateCoordinatesOnCoordChange(selfself, context):
+    def updateCoordinatesOnCoordChange(self, context):
         roundedProfileObject = bpy.context.active_object
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
-        converterToXY = StrategyFactory.getConverterOnCoordsChange(coordSystem)
+        converterToXY = StrategyFactory.getConverterOnCoordsValueChange(coordSystem)
         converterToXY(corners)
-        Updater.updateProfile(self, context)
+        Updater.updateConnectionsRadiusForAutoadjust(self, context)
 
     @staticmethod
     def updateCornerAndConnectionProperties(self, context):
@@ -130,6 +133,7 @@ class Updater():
 
     @staticmethod
     def updateProfile(self, context):
+        # Updater.updateConnectionsRadiusForAutoadjust(self, context)
         o = bpy.context.active_object
         o.select = False
         o.data.user_clear()
@@ -197,7 +201,7 @@ class StrategyFactory():
             return convertFromXYToRefAngular
 
     @staticmethod
-    def updateCoordinatesOnCoordChange(coords):
+    def getConverterOnCoordsValueChange(coords):
         if coords == 'XY':
             return convertXYFake
         elif coords == 'Angular':
