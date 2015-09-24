@@ -16,10 +16,16 @@ YZ = 'YZ'
 
 class CornerProperties(bpy.types.PropertyGroup):
     x = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center X', update = Updater.updateCoordinatesOnCoordChange)
+                                description = 'Center X', update = Updater.updateConnectionsRadiusForAutoadjust)
 
     y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Center Y', update = Updater.updateCoordinatesOnCoordChange)
+                                description = 'Center Y', update = Updater.updateConnectionsRadiusForAutoadjust)
+
+    dx = bpy.props.FloatProperty(name = 'deltaX' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Delta X', update = Updater.updateCoordinatesOnCoordChange)
+
+    dy = bpy.props.FloatProperty(name = 'deltaY' , min = -1000, max = 1000, default = 0, precision = 1,
+                                description = 'Delta Y', update = Updater.updateCoordinatesOnCoordChange)
 
     coordAngle = bpy.props.FloatProperty(name = 'Coord angle' , min = 0, max = 360, default = 0, precision = 1,
                                 description = 'Angular coordinate angle', update = Updater.updateCoordinatesOnCoordChange)

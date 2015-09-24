@@ -71,10 +71,11 @@ class RoundedProfilePanel(bpy.types.Panel):
 
     def drawCornersAndConnections(self, layout, properties, box):
         numOfCorners = properties.numOfCorners
+        coordSystem = properties.coordSystem
         if numOfCorners > 0:
             for id in range(0, len(properties.corners)):
                 box = layout.box()
-                self.addCornerToMenu(id + 1, box, properties.corners[id], properties.masterCornerEnabled)
+                self.addCornerToMenu(id + 1, box, properties.corners[id], properties.masterCornerEnabled, coordSystem)
 
             if not properties.masterConnectionEnabled:
                 for id in range(0, len(properties.connections)):
@@ -126,15 +127,23 @@ class RoundedProfilePanel(bpy.types.Panel):
             self.drawProperties(o, layout)
 
 
+    def addCoordsForCorner(self, corners, coordSystem, row):
+        if coordSystem == 'XY':
+            row.prop(corners, 'x')
+            row.prop(corners, 'y')
+        elif coordSystem == 'Angular':
+            row.prop(corners, 'coordAngle')
+            row.prop(corners, 'coordRadius')
 
-    def addCornerToMenu(self, id, box, corners, master):
+
+    def addCornerToMenu(self, id, box, corners, master, coordSystem):
         row = box.row()
         row.label("Corner " + str(id))
         if not master:
             row.prop(corners, 'flipAngle')
         row = box.row()
-        row.prop(corners, 'x')
-        row.prop(corners, 'y')
+
+        self.addCoordsForCorner(corners, coordSystem, row)
 
         if not master:
             row = box.row()

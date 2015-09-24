@@ -3,18 +3,21 @@ Created on 20 sie 2015
 
 @author: Komi
 '''
-from math import fabs, sqrt, acos, degrees, pi
+from math import fabs, sqrt, acos, degrees, pi, radians
 
 from mathutils import Vector
 
 import bmesh
 import bpy
+from roundedprofile.coords_converter import CoordsConverter
 from roundedprofile.geometry_calculator import GeometryCalculator
+
 
 two_pi = 2 * pi
 defaultZ = 0
 
 class Updater():
+
     @staticmethod
     def addMesh(roundedProfileObject):
         corners = roundedProfileObject.RoundedProfileProps[0].corners
@@ -101,16 +104,29 @@ class Updater():
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
         converterToNewCoords = StrategyFactory.getConverterOnCoordsSystemChange(coordSystem)
         converterToNewCoords(corners)
-        Updater.updateProfile(self, context)
+        Updater.displayCoords(self, corners)
+        # Updater.updateProfile(self, context)
 
     @staticmethod
     def updateCoordinatesOnCoordChange(self, context):
         roundedProfileObject = bpy.context.active_object
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
+
+#        Updater.updateCoordinatesOnCoordSystemChange(self, context)  # converts to XY to different coords
+
         converterToXY = StrategyFactory.getConverterOnCoordsValueChange(coordSystem)
         converterToXY(corners)
+        Updater.displayCoords(self, corners)
         Updater.updateConnectionsRadiusForAutoadjust(self, context)
+
+    @staticmethod
+    def displayCoords(self, corners):
+        print("-X-Y-ALPHA-RADIUS-")
+        for c in corners:
+            print("------")
+            print(str(c.x) + " --- " + str(c.y) + " --- " + str(c.coordAngle) + " --- " + str(c.coordRadius))
+        print("========================")
 
     @staticmethod
     def updateCornerAndConnectionProperties(self, context):
@@ -216,7 +232,10 @@ def convertXYFake(corners):
 
 # TODO:
 def convertFromXYToGlobalAngular(corners):
-    pass
+    for c in corners:
+        angle, radius = CoordsConverter.ToAngular(0, 0, c.x, c.y)
+        c.coordAngle = degrees(angle)
+        c.coordRadius = radius
 
 def convertFromXYToDxDy(corners):
     pass
@@ -225,7 +244,8 @@ def convertFromXYToRefAngular(corners):
     pass
 
 def convertFromGlobalAngularToXY(corners):
-    pass
+    for c in corners:
+        c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
 
 def convertFromDxDyToXY(corners):
     pass

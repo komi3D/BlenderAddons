@@ -11,10 +11,9 @@ from roundedprofile.coords_converter import CoordsConverter
 
 class Test(unittest.TestCase):
 
-    converter = None
 
     def setUp(self):
-        self.converter = CoordsConverter()
+        pass
 
     def tearDown(self):
         pass
@@ -25,7 +24,7 @@ class Test(unittest.TestCase):
         alpha = radians(45)
         r = 5
 
-        x, y = self.converter.ToXY(refX, refY, alpha, r)
+        x, y = CoordsConverter.ToXY(refX, refY, alpha, r)
 
         self.assertAlmostEqual(3.536, x, 3)
         self.assertAlmostEqual(3.536, y, 3)
@@ -36,7 +35,7 @@ class Test(unittest.TestCase):
         alpha = radians(135)
         r = 5
 
-        x, y = self.converter.ToXY(refX, refY, alpha, r)
+        x, y = CoordsConverter.ToXY(refX, refY, alpha, r)
 
         self.assertAlmostEqual(-3.536, x, 3)
         self.assertAlmostEqual(3.536, y, 3)
@@ -47,7 +46,7 @@ class Test(unittest.TestCase):
         alpha = radians(225)
         r = 5
 
-        x, y = self.converter.ToXY(refX, refY, alpha, r)
+        x, y = CoordsConverter.ToXY(refX, refY, alpha, r)
 
         self.assertAlmostEqual(-3.536, x, 3)
         self.assertAlmostEqual(-3.536, y, 3)
@@ -58,7 +57,7 @@ class Test(unittest.TestCase):
         alpha = radians(315)
         r = 5
 
-        x, y = self.converter.ToXY(refX, refY, alpha, r)
+        x, y = CoordsConverter.ToXY(refX, refY, alpha, r)
 
         self.assertAlmostEqual(3.536, x, 3)
         self.assertAlmostEqual(-3.536, y, 3)
@@ -69,7 +68,7 @@ class Test(unittest.TestCase):
         alpha = radians(-45)
         r = 5
 
-        x, y = self.converter.ToXY(refX, refY, alpha, r)
+        x, y = CoordsConverter.ToXY(refX, refY, alpha, r)
 
         self.assertAlmostEqual(3.536, x, 3)
         self.assertAlmostEqual(-3.536, y, 3)
@@ -80,10 +79,24 @@ class Test(unittest.TestCase):
         alpha = radians(135)
         r = 5
 
-        x, y = self.converter.ToXY(refX, refY, alpha, r)
+        x, y = CoordsConverter.ToXY(refX, refY, alpha, r)
 
         self.assertAlmostEqual(-1.536, x, 3)
         self.assertAlmostEqual(6.536, y, 3)
+
+    def testToAngularCenterPointRefCenter(self):
+
+        refX = 0.0
+        refY = 0.0
+
+        x = 0.0
+        y = 0.0
+
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
+
+        alphaDeg = degrees(alpha)
+        self.assertAlmostEqual(0.00, r, 3)
+        self.assertAlmostEqual(0, alphaDeg, 3)
 
     def testToAngularFirstQuarterRefCenter(self):
 
@@ -94,7 +107,7 @@ class Test(unittest.TestCase):
         y = 3.536
 
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
@@ -109,7 +122,7 @@ class Test(unittest.TestCase):
         y = 3.536
 
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
@@ -124,7 +137,7 @@ class Test(unittest.TestCase):
         y = -3.536
 
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
@@ -139,7 +152,7 @@ class Test(unittest.TestCase):
         y = -3.536
 
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
@@ -154,7 +167,7 @@ class Test(unittest.TestCase):
         y = 6.536
 
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
@@ -169,7 +182,7 @@ class Test(unittest.TestCase):
         y = -0.536
 
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
@@ -183,7 +196,7 @@ class Test(unittest.TestCase):
         x = 5.536
         y = -0.536
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
@@ -197,7 +210,7 @@ class Test(unittest.TestCase):
         x = 5.536
         y = -0.536
 
-        alpha, r = self.converter.ToAngular(refX, refY, x, y)
+        alpha, r = CoordsConverter.ToAngular(refX, refY, x, y)
 
         alphaDeg = degrees(alpha)
         self.assertAlmostEqual(5.0006, r, 3)
