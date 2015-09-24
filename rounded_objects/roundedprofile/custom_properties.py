@@ -27,10 +27,10 @@ class CornerProperties(bpy.types.PropertyGroup):
     dy = bpy.props.FloatProperty(name = 'deltaY' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Delta Y', update = Updater.updateCoordinatesOnCoordChange)
 
-    coordAngle = bpy.props.FloatProperty(name = 'Coord angle' , min = 0, max = 360, default = 0, precision = 1,
+    coordAngle = bpy.props.FloatProperty(name = 'Angle' , min = -360, max = 360, default = 0, precision = 1,
                                 description = 'Angular coordinate angle', update = Updater.updateCoordinatesOnCoordChange)
 
-    coordRadius = bpy.props.FloatProperty(name = 'Coord radius' , min = 0, max = 100000, default = 0, precision = 1,
+    coordRadius = bpy.props.FloatProperty(name = 'Radius' , min = 0, max = 100000, default = 0, precision = 1,
                                 description = 'Angular coordinate radius', update = Updater.updateCoordinatesOnCoordChange)
 
     startx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
@@ -94,6 +94,9 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
         items = (('XY', "XY", ""), ('Angular', "Angular", ""),
                   ('PreviousRefXY', "PreviousRefXY", ""), ('PreviousRefAngular', "PreviousRefAngular", ""),),
         name = "Coordinates", description = "Mode of entering corner coordinates", update = Updater.updateCoordinatesOnCoordSystemChange)
+
+    coordSystemChangingFlag = bpy.props.BoolProperty(name = "coordSystemChangingFlag", default = False, description = "Helper flag when changing coords system")
+
 
     totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 100, default = 2,
                                 description = 'Number of sides in the whole profile',)

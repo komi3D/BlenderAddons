@@ -102,22 +102,28 @@ class Updater():
         roundedProfileObject = bpy.context.active_object
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
+        roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag = True
+        # print("updateCoordinatesOnCoordSystemChange 1 ===")
+        # Updater.displayCoords(self, corners)
         converterToNewCoords = StrategyFactory.getConverterOnCoordsSystemChange(coordSystem)
         converterToNewCoords(corners)
-        Updater.displayCoords(self, corners)
-        # Updater.updateProfile(self, context)
+        # print("updateCoordinatesOnCoordSystemChange 2 ===")
+        # Updater.displayCoords(self, corners)
+        roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag = False
 
     @staticmethod
     def updateCoordinatesOnCoordChange(self, context):
         roundedProfileObject = bpy.context.active_object
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
-
-#        Updater.updateCoordinatesOnCoordSystemChange(self, context)  # converts to XY to different coords
-
-        converterToXY = StrategyFactory.getConverterOnCoordsValueChange(coordSystem)
-        converterToXY(corners)
-        Updater.displayCoords(self, corners)
+        flag = roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag
+        # print("updateCoordinatesOnCoordChange 1")
+        # Updater.displayCoords(self, corners)
+        if flag == False:
+            converterToXY = StrategyFactory.getConverterOnCoordsValueChange(coordSystem)
+            converterToXY(corners)
+        # print("updateCoordinatesOnCoordChange 2")
+        # Updater.displayCoords(self, corners)
         Updater.updateConnectionsRadiusForAutoadjust(self, context)
 
     @staticmethod
@@ -232,10 +238,12 @@ def convertXYFake(corners):
 
 # TODO:
 def convertFromXYToGlobalAngular(corners):
+   # print("convertFromXYToGlobalAngular")
     for c in corners:
         angle, radius = CoordsConverter.ToAngular(0, 0, c.x, c.y)
         c.coordAngle = degrees(angle)
         c.coordRadius = radius
+
 
 def convertFromXYToDxDy(corners):
     pass
@@ -244,6 +252,7 @@ def convertFromXYToRefAngular(corners):
     pass
 
 def convertFromGlobalAngularToXY(corners):
+    # print("convertFromGlobalAngularToXY")
     for c in corners:
         c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
 
