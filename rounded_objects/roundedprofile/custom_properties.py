@@ -21,10 +21,10 @@ class CornerProperties(bpy.types.PropertyGroup):
     y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Center Y', update = Updater.updateConnectionsRadiusForAutoadjust)
 
-    dx = bpy.props.FloatProperty(name = 'deltaX' , min = -1000, max = 1000, default = 0, precision = 1,
+    dx = bpy.props.FloatProperty(name = 'dX' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Delta X', update = Updater.updateCoordinatesOnCoordChange)
 
-    dy = bpy.props.FloatProperty(name = 'deltaY' , min = -1000, max = 1000, default = 0, precision = 1,
+    dy = bpy.props.FloatProperty(name = 'dY' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Delta Y', update = Updater.updateCoordinatesOnCoordChange)
 
     coordAngle = bpy.props.FloatProperty(name = 'Angle' , min = -360, max = 360, default = 0, precision = 1,
@@ -57,7 +57,6 @@ class CornerProperties(bpy.types.PropertyGroup):
 
 
 class ConnectionProperties(bpy.types.PropertyGroup):
-    # if line then only sides available??
     type = bpy.props.EnumProperty(
         items = (('Arc', "Arc", ""), ('Line', "Line", "")),
         name = "type", description = "Type of connection", update = Updater.updateProfile)
@@ -82,18 +81,18 @@ class ConnectionProperties(bpy.types.PropertyGroup):
 class RoundedProfileProperties(bpy.types.PropertyGroup):
 
     type = bpy.props.EnumProperty(
-        items = (('Polygon', "Polygon", ""), ('Chain', "Chain", ""), ('ClosedChain', "Closed chain", ""),),
+        items = (('Polygon', "Polygon", ""), ('Chain', "Chain", ""),),
         name = "Type", description = "Type of the profile", update = Updater.updateProfile)
 
     drawMode = bpy.props.EnumProperty(
         items = (('Both', "Both", ""), ('Corners', "Corners", ""),
                   ('Connections', "Connections", ""), ('Merged result', "Merged result", ""),),
-        name = "Draw mode", description = "Mode of drawing the profile", update = Updater.updateProfile)
+        name = "Draw", description = "Mode of drawing the profile", update = Updater.updateProfile)
 
     coordSystem = bpy.props.EnumProperty(
         items = (('XY', "XY", ""), ('Angular', "Angular", ""),
                   ('DeltaXY', "DeltaXY", ""), ('DeltaAngular', "DeltaAngular", ""),),
-        name = "Coordinates", description = "Mode of entering corner coordinates", update = Updater.updateCoordinatesOnCoordSystemChange)
+        name = "Coords", description = "Coordinate system used for entering corner coordinates", update = Updater.updateCoordinatesOnCoordSystemChange)
 
     coordSystemChangingFlag = bpy.props.BoolProperty(name = "coordSystemChangingFlag", default = False, description = "Helper flag when changing coords system")
 

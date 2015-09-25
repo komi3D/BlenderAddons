@@ -12,7 +12,7 @@ import bpy
 from roundedprofile.coords_converter import CoordsConverter
 from roundedprofile.geometry_calculator import GeometryCalculator
 
-
+WRONG_FLOAT = 1e10
 two_pi = 2 * pi
 defaultZ = 0
 
@@ -103,12 +103,8 @@ class Updater():
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
         roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag = True
-        # print("updateCoordinatesOnCoordSystemChange 1 ===")
-        # Updater.displayCoords(self, corners)
         converterToNewCoords = StrategyFactory.getConverterOnCoordsSystemChange(coordSystem)
         converterToNewCoords(corners)
-        # print("updateCoordinatesOnCoordSystemChange 2 ===")
-        # Updater.displayCoords(self, corners)
         roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag = False
 
     @staticmethod
@@ -117,13 +113,9 @@ class Updater():
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
         flag = roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag
-        # print("updateCoordinatesOnCoordChange 1")
-        # Updater.displayCoords(self, corners)
         if flag == False:
             converterToXY = StrategyFactory.getConverterOnCoordsValueChange(coordSystem)
             converterToXY(corners)
-        # print("updateCoordinatesOnCoordChange 2")
-        # Updater.displayCoords(self, corners)
         Updater.updateConnectionsRadiusForAutoadjust(self, context)
 
     @staticmethod
@@ -155,7 +147,6 @@ class Updater():
 
     @staticmethod
     def updateProfile(self, context):
-        # Updater.updateConnectionsRadiusForAutoadjust(self, context)
         o = bpy.context.active_object
         o.select = False
         o.data.user_clear()
@@ -239,14 +230,12 @@ def convertXYFake(corners):
     pass
 
 def convertFromXYToGlobalAngular(corners):
-   # print("convertFromXYToGlobalAngular")
     for c in corners:
         angle, radius = CoordsConverter.ToAngular(0, 0, c.x, c.y)
         c.coordAngle = degrees(angle)
         c.coordRadius = radius
 
 def convertFromGlobalAngularToXY(corners):
-    # print("convertFromGlobalAngularToXY")
     for c in corners:
         c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
 
@@ -287,8 +276,7 @@ def convertFromRefAngularToXY(corners):
         corners[i + 1].x, corners[i + 1].y = CoordsConverter.ToXY(corners[i].x, corners[i].y,
                                                                radians(corners[i + 1].coordAngle), corners[i + 1].coordRadius)
 
-# ## 'XY', 'Angular', 'PreviousRefXY','PreviousRefAngular'
-
+# 'XY', 'Angular', 'DeltaXY','DeltaAngular'
 def drawModeCorners(corners, connections, mesh, bm):
     for corner in corners:
         drawCornerCircle(corner, bm)
@@ -325,7 +313,7 @@ def drawCornerCircle(corner, bm):
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angle, steps = corner.sides, use_duplicate = False)
 def drawCornerAsArc(corner, bm):
-    if corner.startx == None or corner.starty == None or corner.endx == None or corner.endy == None:
+    if corner.startx == WRONG_FLOAT or corner.starty == WRONG_FLOAT or corner.endx == WRONG_FLOAT or corner.endy == WRONG_FLOAT:
         return
     center = Vector((corner.x, corner.y, defaultZ))
     startPoint = Vector ((corner.startx, corner.starty, defaultZ))
@@ -358,9 +346,9 @@ def assignCornerEndPoint(corner, endPoint):
         corner.endy = endPoint[1]
         corner.endz = defaultZ
     else:
-        corner.endx = None
-        corner.endy = None
-        corner.endz = None
+        corner.endx = WRONG_FLOAT
+        corner.endy = WRONG_FLOAT
+        corner.endz = WRONG_FLOAT
 
 def assignCornerStartPoint(corner, startPoint):
     if startPoint != None:
@@ -368,9 +356,9 @@ def assignCornerStartPoint(corner, startPoint):
         corner.starty = startPoint[1]
         corner.startz = defaultZ
     else:
-        corner.startx = None
-        corner.starty = None
-        corner.startz = None
+        corner.startx = WRONG_FLOAT
+        corner.starty = WRONG_FLOAT
+        corner.startz = WRONG_FLOAT
 
 def drawInnerTangentConnection(corner1, corner2, connection, bm):
     c1 = Vector((corner1.x, corner1.y, defaultZ))
@@ -382,6 +370,8 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
 
     intersections = geomCalc.getCircleIntersections(c1, r1, c2, r2)
     if intersections == None:
+        assignCornerEndPoint(corner1, None)
+        assignCornerStartPoint(corner2, None)
         return
 
     center = None
@@ -421,6 +411,8 @@ def drawOuterTangentConnection(corner1, corner2, connection, bm):
 
     intersections = geomCalc.getCircleIntersections(c1, r1, c2, r2)
     if intersections == None:
+        assignCornerEndPoint(corner1, None)
+        assignCornerStartPoint(corner2, None)
         return
 
     center = None

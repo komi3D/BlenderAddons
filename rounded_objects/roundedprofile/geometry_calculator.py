@@ -133,8 +133,12 @@ class GeometryCalculator(object):
         y = (A ** 2 + C ** 2 - B ** 2) / (2 * C)
         x = sqrt(A ** 2 - y ** 2)
 
-        alpha = acos(x / A)
-        beta = acos(x / B)
+        alpha = 0
+        beta = 0
+        if (A != 0):
+            alpha = acos(x / A)
+        if (B != 0):
+            beta = acos(x / B)
         angle = alpha + beta
         angle = self._adjustAnglePlusOrMinus(point1, point3, p2p1Vector, angle)
         angleDeg = degrees(angle)

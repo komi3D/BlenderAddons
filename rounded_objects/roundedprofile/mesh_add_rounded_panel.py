@@ -214,13 +214,10 @@ class RoundedProfileConnectionsPanel(bpy.types.Panel):
 
     def drawConnections(self, layout, properties, box):
         numOfCorners = properties.numOfCorners
-        print("drawConnections1")
         if not properties.masterConnectionEnabled:
             for id in range(0, len(properties.connections)):
-                print("drawConnections2")
                 box = layout.box()
                 self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
-        print("drawConnections3")
 
     def addConnectionToMenu(self, id, box, connections, numOfCorners):
         if id < numOfCorners:
