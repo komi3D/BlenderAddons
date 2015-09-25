@@ -24,7 +24,6 @@ class RoundedProfilePanel(bpy.types.Panel):
     bl_label = "Rounded Profile"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Addons'
 
     @classmethod
     def poll(cls, context):
@@ -35,82 +34,6 @@ class RoundedProfilePanel(bpy.types.Panel):
             return False
         else:
             return True
-
-    def drawMasterCornerProperties(self, layout, properties):
-        box = layout.box()
-        row = box.row()
-        row.prop(properties, 'masterCornerEnabled')
-        if properties.masterCornerEnabled:
-            row.prop(properties, 'masterCornerFlipAngle')
-            row = box.row()
-            row.prop(properties, 'masterCornerRadius')
-            row.prop(properties, 'masterCornerSides')
-        return box, row
-
-
-    def drawMasterConnection(self, layout, properties, row, box):
-        box = layout.box()
-        row = box.row()
-        row.prop(properties, 'masterConnectionEnabled')
-        if properties.masterConnectionEnabled:
-            row = box.row()
-            row.prop(properties, 'masterConnectionType', expand = True)
-            if properties.masterConnectionType == 'Arc':
-                row = box.row()
-                row.prop(properties, 'masterConnectionInout', expand = True)
-                row = box.row()
-                row.prop(properties, 'masterConnectionRadius')
-                row.prop(properties, 'masterConnectionSides')
-                row = box.row()
-                row.prop(properties, 'masterConnectionflipCenter')
-                row.prop(properties, 'masterConnectionflipAngle')
-
-
-        return box
-
-
-    def drawCornersAndConnections(self, layout, properties, box):
-        numOfCorners = properties.numOfCorners
-        coordSystem = properties.coordSystem
-        if numOfCorners > 0:
-            for id in range(0, len(properties.corners)):
-                box = layout.box()
-                self.addCornerToMenu(id + 1, box, properties.corners[id], properties.masterCornerEnabled, coordSystem)
-
-            if not properties.masterConnectionEnabled:
-                for id in range(0, len(properties.connections)):
-                    box = layout.box()
-                    self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
-
-
-    def drawGeneralProperties(self, layout, properties):
-        row = layout.row()
-        row.prop(properties, 'type')
-        row = layout.row()
-        row.prop(properties, 'drawMode')
-        row = layout.row()
-        row.prop(properties, 'coordSystem')
-        row = layout.row()
-        row.prop(properties, 'numOfCorners')
-        row = layout.row()
-        row.prop(properties, 'connectionAutoAdjustEnabled')
-        return row
-
-
-    def drawInfo(self, layout, properties, row):
-        row = layout.row()
-        totalSidesText = "Total sides = " + str(properties.totalSides)
-        row.label(totalSidesText)
-
-    def drawProperties(self, o, layout):
-        properties = o.RoundedProfileProps[0]
-
-        row = self.drawGeneralProperties(layout, properties)
-        box, row = self.drawMasterCornerProperties(layout, properties)
-        box = self.drawMasterConnection(layout, properties, row, box)
-
-        self.drawCornersAndConnections(layout, properties, box)
-        self.drawInfo(layout, properties, row)
 
     def draw(self, context):
         o = context.object
@@ -126,6 +49,96 @@ class RoundedProfilePanel(bpy.types.Panel):
         else:
             self.drawProperties(o, layout)
 
+    def drawProperties(self, o, layout):
+        properties = o.RoundedProfileProps[0]
+        row = self.drawGeneralProperties(layout, properties)
+        self.drawInfo(layout, properties, row)
+        
+    def drawGeneralProperties(self, layout, properties):
+        row = layout.row()
+        row.prop(properties, 'type')
+        row = layout.row()
+        row.prop(properties, 'drawMode')
+        row = layout.row()
+        row.prop(properties, 'coordSystem')
+        return row
+    
+    def drawInfo(self, layout, properties, row):
+        row = layout.row()
+        totalSidesText = "Total sides = " + str(properties.totalSides)
+        row.label(totalSidesText)
+
+#############################################
+class RoundedProfileCornersPanel(bpy.types.Panel):
+    bl_idname = "OBJECT_PT_RoundedProfileCorners"
+    bl_label = "Corners"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    @classmethod
+    def poll(cls, context):
+        o = context.object
+        if o is None:
+            return False
+        if 'RoundedProfileProps' not in o:
+            return False
+        else:
+            return True
+
+    def draw(self, context):
+        o = context.object
+        try:
+            if 'RoundedProfileProps' not in o:
+                return
+        except:
+            return
+
+        layout = self.layout
+        if bpy.context.mode == 'EDIT_MESH':
+            layout.label('Warning: Operator does not work in edit mode.', icon = 'ERROR')
+        else:
+            self.drawCornersMain(o, layout)
+
+    def drawCornersMain(self, o, layout):
+        properties = o.RoundedProfileProps[0]
+        box = layout.box()
+        row = box.row()
+        row.prop(properties, 'numOfCorners')
+        # row = layout.row()
+        box, row = self.drawMasterCornerProperties(layout, properties, box)
+        self.drawCornersAndConnections(layout, properties, box)
+
+    def drawMasterCornerProperties(self, layout, properties, box):
+        row = box.row()
+        row.prop(properties, 'masterCornerEnabled')
+        if properties.masterCornerEnabled:
+            row.prop(properties, 'masterCornerFlipAngle')
+            row = box.row()
+            row.prop(properties, 'masterCornerRadius')
+            row.prop(properties, 'masterCornerSides')
+        return box, row
+
+    def drawCornersAndConnections(self, layout, properties, box):
+        numOfCorners = properties.numOfCorners
+        coordSystem = properties.coordSystem
+        for id in range(0, len(properties.corners)):
+            box = layout.box()
+            self.addCornerToMenu(id + 1, box, properties.corners[id], properties.masterCornerEnabled, coordSystem)
+
+    def addCornerToMenu(self, id, box, corners, master, coordSystem):
+        row = box.row()
+
+        row.label("Corner " + str(id))
+        if not master:
+            row.prop(corners, 'flipAngle')
+        row = box.row()
+
+        self.addCoordsForCorner(corners, coordSystem, row)
+
+        if not master:
+            row = box.row()
+            row.prop(corners, 'radius')
+            row.prop(corners, 'sides')
 
     def addCoordsForCorner(self, corners, coordSystem, row):
         if coordSystem == 'XY':
@@ -141,21 +154,73 @@ class RoundedProfilePanel(bpy.types.Panel):
             row.prop(corners, 'coordAngle')
             row.prop(corners, 'coordRadius')
 
+#######################################################
+class RoundedProfileConnectionsPanel(bpy.types.Panel):
+    bl_idname = "OBJECT_PT_RoundedProfileConnections"
+    bl_label = "Connections"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
 
-    def addCornerToMenu(self, id, box, corners, master, coordSystem):
+    @classmethod
+    def poll(cls, context):
+        o = context.object
+        if o is None:
+            return False
+        if 'RoundedProfileProps' not in o:
+            return False
+        else:
+            return True
+
+    def draw(self, context):
+        o = context.object
+        try:
+            if 'RoundedProfileProps' not in o:
+                return
+        except:
+            return
+
+        layout = self.layout
+        if bpy.context.mode == 'EDIT_MESH':
+            layout.label('Warning: Operator does not work in edit mode.', icon = 'ERROR')
+        else:
+            self.drawConnectionsMain(o, layout)
+
+
+    def drawConnectionsMain(self, o, layout):
+        properties = o.RoundedProfileProps[0]
+        box = layout.box()
         row = box.row()
-        row.label("Corner " + str(id))
-        if not master:
-            row.prop(corners, 'flipAngle')
+        row.prop(properties, 'connectionAutoAdjustEnabled')
+        box = self.drawMasterConnection(layout, properties, box)
+        self.drawConnections(layout, properties, box)
+
+    def drawMasterConnection(self, layout, properties, box):
         row = box.row()
-
-        self.addCoordsForCorner(corners, coordSystem, row)
-
-        if not master:
+        row.prop(properties, 'masterConnectionEnabled')
+        if properties.masterConnectionEnabled:
             row = box.row()
-            row.prop(corners, 'radius')
-            row.prop(corners, 'sides')
+            row.prop(properties, 'masterConnectionType', expand = True)
+            if properties.masterConnectionType == 'Arc':
+                row = box.row()
+                row.prop(properties, 'masterConnectionInout', expand = True)
+                row = box.row()
+                row.prop(properties, 'masterConnectionRadius')
+                row.prop(properties, 'masterConnectionSides')
+                row = box.row()
+                row.prop(properties, 'masterConnectionflipCenter')
+                row.prop(properties, 'masterConnectionflipAngle')
+        return box
 
+
+    def drawConnections(self, layout, properties, box):
+        numOfCorners = properties.numOfCorners
+        print("drawConnections1")
+        if not properties.masterConnectionEnabled:
+            for id in range(0, len(properties.connections)):
+                print("drawConnections2")
+                box = layout.box()
+                self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
+        print("drawConnections3")
 
     def addConnectionToMenu(self, id, box, connections, numOfCorners):
         if id < numOfCorners:
@@ -175,3 +240,5 @@ class RoundedProfilePanel(bpy.types.Panel):
             row = box.row()
             row.prop(connections, 'flipCenter')
             row.prop(connections, 'flipAngle')
+
+
