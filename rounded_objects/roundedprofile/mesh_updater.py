@@ -23,12 +23,13 @@ class Updater():
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         connections = roundedProfileObject.RoundedProfileProps[0].connections
         drawMode = roundedProfileObject.RoundedProfileProps[0].drawMode
+        roundedtype = roundedProfileObject.RoundedProfileProps[0].type
 
         mesh = roundedProfileObject.data
         bm = bmesh.new()
         bm.from_mesh(mesh)
 
-        drawFunction = StrategyFactory.getDrawStrategy(drawMode)
+        drawFunction = StrategyFactory.getDrawStrategy(drawMode, roundedtype)
         drawFunction(corners, connections, mesh, bm)
 
     @staticmethod
@@ -55,21 +56,42 @@ class Updater():
         bpy.context.scene.objects.active = roundedProfileObject
 
     @staticmethod
+    def adjustCornersAndConnectionsInPolygonMode(self, rpp, actualNum, delta):
+        if delta > 0:
+            for cont in range(0, delta):
+                rpp.corners.add()
+                rpp.connections.add()
+        
+        elif delta < 0:
+            for cont in range(0, (delta) * (-1)):
+                rpp.corners.remove(actualNum - 1)
+                rpp.connections.remove(actualNum - 1)
+
+    @staticmethod
+    def adjustCornersAndConnectionsInChainMode(self, rpp, actualNum, delta):
+        if delta > 0:
+            for cont in range(0, delta):
+                rpp.corners.add()
+                rpp.connections.add()
+
+        elif delta < 0:
+            for cont in range(0, (delta) * (-1)):
+                rpp.corners.remove(actualNum - 1)
+                rpp.connections.remove(actualNum - 1)
+                # TODO: connections number
+
+
+    @staticmethod
     def adjustCornersAndConnections(self, context):
         rpp = context.object.RoundedProfileProps[0]
         uiNum = rpp.numOfCorners
         actualNum = len(rpp.corners)
         delta = uiNum - actualNum
 
-        if delta > 0:
-            for cont in range(0, delta):
-                rpp.corners.add()
-                rpp.connections.add()
-        elif delta < 0:
-            for cont in range(0, (delta) * (-1)):
-                rpp.corners.remove(actualNum - 1)
-                rpp.connections.remove(actualNum - 1)
+        self.adjustCornersAndConnectionsInPolygonMode(rpp, actualNum, delta)
+
         Updater.updateCornerAndConnectionProperties(self, context)
+
 
     @staticmethod
     def updateConnectionsRadiusForAutoadjust(self, context):
@@ -146,6 +168,15 @@ class Updater():
         Updater.updateProfile(self, context)
 
     @staticmethod
+    def updateType(self, context):
+        roundedProfileObject = bpy.context.active_object
+        props = roundedProfileObject.RoundedProfileProps[0]
+        type = props.type
+        adjust = StrategyFactory.getTypeAdjust(type)
+        adjust(props)
+        Updater.updateProfile(self, context)
+    
+    @staticmethod
     def updateProfile(self, context):
         o = bpy.context.active_object
         o.select = False
@@ -182,18 +213,24 @@ class Updater():
                 sidesAccumulator = sidesAccumulator + c.sides
         roundedProfileObject.RoundedProfileProps[0].totalSides = sidesAccumulator
 
-
+##################################
 class StrategyFactory():
     @staticmethod
-    def getDrawStrategy(drawMode):
+    def getDrawStrategy(drawMode, roundedProfileType):
+        print("getDrawStrategy")
+        print(str(drawMode))
+        print(str(roundedProfileType))
         if drawMode == 'Corners':
             return drawModeCorners
         elif drawMode == 'Connections':
             return drawModeConnections
         elif drawMode == 'Both':
             return drawModeBoth
-        elif drawMode == 'Merged result':
+        elif drawMode == 'Merged result' and roundedProfileType != 'Curve':
             return drawModeMergedResult
+        elif drawMode == 'Merged result' and roundedProfileType == 'Curve':
+            print("drawModeMergedResultForCurve")
+            return drawModeMergedResultForCurve
 
     @staticmethod
     def getDrawTangentStrategy(inout):
@@ -226,6 +263,38 @@ class StrategyFactory():
         elif coords == 'DeltaAngular':
             return convertFromRefAngularToXY
 
+    @staticmethod
+    def getTypeAdjust(type):
+        if type == 'Polygon':
+            return adjustToPolygon
+        elif type == 'Curve':
+            return adjustToCurve
+        elif type == 'Polygon':
+            return adjustToChain
+##################################
+
+def adjustToPolygon(properties):
+    pass
+
+def adjustToCurve(properties):
+    corners = properties.corners
+    corners_count = len(corners)
+    connections = properties.connections
+    
+    connections_count = len(connections)
+    if(connections_count >= corners_count):
+        while(connections_count >= corners_count):
+            connections.remove(connections_count - 1)
+            connections_count = len(connections)
+    else:
+        while(connections_count < corners_count - 1):
+            connections.add()
+            connections_count = len(connections)
+    
+
+def adjustToChain(properties):
+    pass
+
 def convertXYFake(corners):
     pass
 
@@ -255,7 +324,6 @@ def convertFromDxDyToXY(corners):
         corners[i + 1].x = corners[i].x + corners[i + 1].dx
         corners[i + 1].y = corners[i].y + corners[i + 1].dy
 
-# TODO
 def convertFromXYToRefAngular(corners):
     c0 = corners[0]
     angle, c0.coordRadius = CoordsConverter.ToAngular(0, 0, c0.x, c0.y)
@@ -304,6 +372,19 @@ def drawModeMergedResult(corners, connections, mesh, bm):
 
     bm.to_mesh(mesh)
 
+def drawModeMergedResultForCurve(corners, connections, mesh, bm):
+    drawConnections(corners, connections, bm)
+
+    for index in range(1, len(corners) - 1):
+        drawCornerAsArc(corners[index], bm)
+
+    bm.to_mesh(mesh)
+
+    selectedVerts = [f for f in bm.verts]
+    bmesh.ops.remove_doubles(bm, verts = selectedVerts, dist = 0.001)
+
+    bm.to_mesh(mesh)
+
 def drawCornerCircle(corner, bm):
     center = Vector((corner.x, corner.y, defaultZ))
     startPoint = center + Vector((0, 1, 0)) * corner.radius
@@ -318,7 +399,11 @@ def drawCornerAsArc(corner, bm):
     center = Vector((corner.x, corner.y, defaultZ))
     startPoint = Vector ((corner.startx, corner.starty, defaultZ))
     endPoint = Vector ((corner.endx, corner.endy, defaultZ))
-
+    print("=== Corner ===")
+    print("=== start ===")
+    print(str(corner.startx) + " - " + str(corner.starty))
+    print("=== end ===")
+    print(str(corner.endx) + " - " + str(corner.endy))
     geomCalc = GeometryCalculator()
     angleDeg, angle = geomCalc.getPositiveAngleBetween3Points(startPoint, center, endPoint)
 
@@ -331,10 +416,12 @@ def drawCornerAsArc(corner, bm):
                                    angle = -angle, steps = corner.sides, use_duplicate = False)
 
 def drawConnections(corners, connections, bm):
-    lastIndex = len(corners) - 1
-    for i in range(lastIndex):
+    connectionsLastIndex = len(connections) - 1
+    cornersLastIndex = len(corners) - 1
+    for i in range(cornersLastIndex):
         drawConnection(corners[i], corners[i + 1], connections[i], bm)
-    drawConnection(corners[lastIndex], corners[0], connections[lastIndex], bm)
+    if connectionsLastIndex == cornersLastIndex:
+        drawConnection(corners[cornersLastIndex], corners[0], connections[cornersLastIndex], bm)
 
 def drawConnection(corner1, corner2, connection, bm):
     drawTangentConnection = StrategyFactory.getDrawTangentStrategy(connection.inout)

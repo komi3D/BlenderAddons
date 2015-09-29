@@ -81,8 +81,8 @@ class ConnectionProperties(bpy.types.PropertyGroup):
 class RoundedProfileProperties(bpy.types.PropertyGroup):
 
     type = bpy.props.EnumProperty(
-        items = (('Polygon', "Polygon", ""), ('Chain', "Chain", ""),),
-        name = "Type", description = "Type of the profile", update = Updater.updateProfile)
+        items = (('Polygon', "Polygon", ""), ('Curve', "Curve", ""), ('Chain', "Chain", ""),),
+        name = "Type", description = "Type of the profile", update = Updater.updateType)
 
     drawMode = bpy.props.EnumProperty(
         items = (('Both', "Both", ""), ('Corners', "Corners", ""),
@@ -101,7 +101,7 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
                                 description = 'Number of sides in the whole profile',)
 
 
-    numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 2, max = 100, default = 2,
+    numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 1, max = 100, default = 2,
                                 description = 'Number of corners', update = Updater.adjustCornersAndConnections)
 
     connectionAutoAdjustEnabled = bpy.props.BoolProperty(name = 'Auto adjust connections',
