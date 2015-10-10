@@ -269,12 +269,24 @@ class StrategyFactory():
             return adjustToPolygon
         elif type == 'Curve':
             return adjustToCurve
-        elif type == 'Polygon':
+        elif type == 'Chain':
             return adjustToChain
 ##################################
 
 def adjustToPolygon(properties):
-    pass
+    corners = properties.corners
+    corners_count = len(corners)
+    connections = properties.connections
+
+    connections_count = len(connections)
+    if(connections_count > corners_count):
+        while(connections_count > corners_count):
+            connections.remove(connections_count - 1)
+            connections_count = len(connections)
+    else:
+        while(connections_count < corners_count):
+            connections.add()
+            connections_count = len(connections)
 
 def adjustToCurve(properties):
     corners = properties.corners
@@ -293,7 +305,60 @@ def adjustToCurve(properties):
     
 
 def adjustToChain(properties):
-    pass
+    # adjustToPolygon(properties)
+    adjustToCurve(properties)
+    corners = properties.corners
+    baseCornersCount = len(corners)
+    connections = properties.connections
+    baseConnectionsCount = len(connections)
+
+    # middle corners are duplicated (2,3,4), start and end stays the same
+    # original 1 - 2 - 3 - 4 - 5
+    #          /  2  -  3 -  4 \
+    #        1                   5
+    #          \  2' -  3'-  4'/
+
+    targetCornersCount = 2 * baseCornersCount - 2
+    print("adjustToChain 1")
+    for k in reversed(range(0, baseConnectionsCount - 1)):
+        print("connection ID:" + str(k))
+        connections.add()
+        lastConnectionIndex = len(connections) - 1
+        assignConnectionProperties(connections[lastConnectionIndex], connections[k])
+
+    print("adjustToChain 2")
+    for i in reversed(range(1, baseCornersCount - 1)):
+        print("corner ID:" + str(i))
+        corners.add()
+        lastCornerIndex = len(corners) - 1
+        assignCornerProperties(corners[lastCornerIndex], corners[i])
+
+
+
+    print("adjustToChain 3")
+
+
+
+
+
+def assignCornerProperties(target, source):
+    target.x = source.x
+    target.y = source.y
+    target.dx = source.dx
+    target.dy = source.dy
+    target.coordAngle = source.coordAngle
+    target.coordRadius = source.coordRadius
+    target.flipAngle = source.flipAngle
+    target.radius = source.radius
+    target.sides = source.sides
+
+def assignConnectionProperties(target, source):
+    target.type = source.type
+    target.inout = source.inout
+    target.flipCenter = source.flipCenter
+    target.flipAngle = source.flipAngle
+    target.radius = source.radius
+    target.sides = source.sides
 
 def convertXYFake(corners):
     pass
@@ -399,11 +464,11 @@ def drawCornerAsArc(corner, bm):
     center = Vector((corner.x, corner.y, defaultZ))
     startPoint = Vector ((corner.startx, corner.starty, defaultZ))
     endPoint = Vector ((corner.endx, corner.endy, defaultZ))
-    print("=== Corner ===")
-    print("=== start ===")
-    print(str(corner.startx) + " - " + str(corner.starty))
-    print("=== end ===")
-    print(str(corner.endx) + " - " + str(corner.endy))
+#     print("=== Corner ===")
+#     print("=== start ===")
+#     print(str(corner.startx) + " - " + str(corner.starty))
+#     print("=== end ===")
+#     print(str(corner.endx) + " - " + str(corner.endy))
     geomCalc = GeometryCalculator()
     angleDeg, angle = geomCalc.getPositiveAngleBetween3Points(startPoint, center, endPoint)
 
