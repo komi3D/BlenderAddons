@@ -225,7 +225,7 @@ class RoundedProfileConnectionsPanel(bpy.types.Panel):
         elif id == numOfCorners:
             box.label("Connection " + str(id) + "-" + str(1))
         else:
-            return
+            box.label("Chain Connection " + str(id))
         row = box.row()
         row.prop(connections, 'type', expand = True)
         if connections.type == 'Arc' :

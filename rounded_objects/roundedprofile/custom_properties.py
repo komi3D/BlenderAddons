@@ -96,44 +96,48 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
 
     coordSystemChangingFlag = bpy.props.BoolProperty(name = "coordSystemChangingFlag", default = False, description = "Helper flag when changing coords system")
 
+    updateDisabledFlag = bpy.props.BoolProperty(name = "updateDisabledFlag", default = False, description = "Helper flag to disable updating of programatically changed properties")
 
     totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 1000, default = 2,
                                 description = 'Number of sides in the whole profile',)
 
 
     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 1, max = 100, default = 2,
-                                description = 'Number of corners', update = Updater.adjustCornersAndConnections)
+                                description = 'Number of corners', update = Updater.adjustNumberOfCornersAndConnections)
+
+    previousNumOfCorners = bpy.props.IntProperty(name = 'Previous number of corners' , min = 1, max = 100, default = 2,
+                                description = 'Previous number of corners')
 
     connectionAutoAdjustEnabled = bpy.props.BoolProperty(name = 'Auto adjust connections',
                                 default = False, update = Updater.updateConnectionsRadiusForAutoadjust)
 
-    masterCornerEnabled = bpy.props.BoolProperty(name = 'Master corner', default = False, update = Updater.updateCornerAndConnectionProperties)
+    masterCornerEnabled = bpy.props.BoolProperty(name = 'Master corner', default = False, update = Updater.updateCornerAndConnectionPropertiesFromMaster)
     masterCornerRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 1, precision = 1,
-                                description = 'Master corner radius', update = Updater.updateCornerAndConnectionProperties)
+                                description = 'Master corner radius', update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
     masterCornerSides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 8,
-                                description = 'Number of sides in all corners', update = Updater.updateCornerAndConnectionProperties)
-    masterCornerFlipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateCornerAndConnectionProperties)
+                                description = 'Number of sides in all corners', update = Updater.updateCornerAndConnectionPropertiesFromMaster)
+    masterCornerFlipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
 
     masterConnectionEnabled = bpy.props.BoolProperty(name = 'Master connection', default = False)
     masterConnectionType = bpy.props.EnumProperty(
         items = (('Arc', "Arc", ""), ('Line', "Line", "")),
-        name = "type", description = "Type of connection", update = Updater.updateCornerAndConnectionProperties)
+        name = "type", description = "Type of connection", update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
     masterConnectionInout = bpy.props.EnumProperty(
         items = (('Outer', "Outer", ""), ('Inner', "Inner", ""), ('Outer-Inner', "Outer-Inner", ""), ('Inner-Outer', "Inner-Outer", "")),
-        name = "inout", description = "Tangency type for the connection", update = Updater.updateCornerAndConnectionProperties)
+        name = "inout", description = "Tangency type for the connection", update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
-    masterConnectionflipCenter = bpy.props.BoolProperty(name = "Flip Center", default = False, description = "Change center of spinned connections", update = Updater.updateCornerAndConnectionProperties)
+    masterConnectionflipCenter = bpy.props.BoolProperty(name = "Flip Center", default = False, description = "Change center of spinned connections", update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
-    masterConnectionflipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateCornerAndConnectionProperties)
+    masterConnectionflipAngle = bpy.props.BoolProperty(name = "Flip Angle", default = False, description = "Change angle to 2pi - angle", update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
     masterConnectionRadius = bpy.props.FloatProperty(name = 'R' , min = 0, max = 100000, default = 4, precision = 1,
-                                description = 'Master connection radius', update = Updater.updateCornerAndConnectionProperties)
+                                description = 'Master connection radius', update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
     masterConnectionSides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 4,
-                                description = 'Number of sides in all connection', update = Updater.updateCornerAndConnectionProperties)
+                                description = 'Number of sides in all connection', update = Updater.updateCornerAndConnectionPropertiesFromMaster)
 
     corners = bpy.props.CollectionProperty(type = CornerProperties)
 

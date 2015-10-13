@@ -56,7 +56,7 @@ class Updater():
         bpy.context.scene.objects.active = roundedProfileObject
 
     @staticmethod
-    def adjustCornersAndConnectionsInPolygonMode(self, rpp, actualNum, delta):
+    def adjustCornersAndConnectionsInPolygonMode(rpp, actualNum, delta):
         if delta > 0:
             for cont in range(0, delta):
                 rpp.corners.add()
@@ -68,7 +68,7 @@ class Updater():
                 rpp.connections.remove(actualNum - 1)
 
     @staticmethod
-    def adjustCornersAndConnectionsInChainMode(self, rpp, actualNum, delta):
+    def adjustCornersAndConnectionsInChainMode(rpp, actualNum, delta):
         if delta > 0:
             for cont in range(0, delta):
                 rpp.corners.add()
@@ -82,15 +82,27 @@ class Updater():
 
 
     @staticmethod
-    def adjustCornersAndConnections(self, context):
-        rpp = context.object.RoundedProfileProps[0]
-        uiNum = rpp.numOfCorners
-        actualNum = len(rpp.corners)
+    def adjustNumberOfCornersAndConnections(self, context):
+        props = context.object.RoundedProfileProps[0]
+        uiNum = props.numOfCorners
+
+
+        previousType = props.type
+#         print(" ======= ")
+#         print("adjustNumberOfCornersAndConnections - prevtype: " + str(previousType))
+#         print("adjustNumberOfCornersAndConnections - len(corners) " + str(len(props.corners)))
+        props.type = 'Polygon'
+        actualNum = len(props.corners)
         delta = uiNum - actualNum
+#         print("adjustNumberOfCornersAndConnections - len(corners) in Polygon: " + str(len(props.corners)))
 
-        self.adjustCornersAndConnectionsInPolygonMode(rpp, actualNum, delta)
-
-        Updater.updateCornerAndConnectionProperties(self, context)
+        Updater.adjustCornersAndConnectionsInPolygonMode(props, actualNum, delta)
+#         print("adjustNumberOfCornersAndConnections - len(corners) in Polygon after adjust: " + str(len(props.corners)))
+        Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
+#         print("adjustNumberOfCornersAndConnections - len(corners) in Polygon after update: " + str(len(props.corners)))
+        props.previousNumOfCorners = uiNum
+        props.type = previousType
+#         print("adjustNumberOfCornersAndConnections: " + str(len(props.corners)))
 
 
     @staticmethod
@@ -149,7 +161,7 @@ class Updater():
         print("========================")
 
     @staticmethod
-    def updateCornerAndConnectionProperties(self, context):
+    def updateCornerAndConnectionPropertiesFromMaster(self, context):
         roundedProfileObject = bpy.context.active_object
         props = roundedProfileObject.RoundedProfileProps[0]
         if props.masterCornerEnabled:
@@ -169,13 +181,15 @@ class Updater():
 
     @staticmethod
     def updateType(self, context):
-        roundedProfileObject = bpy.context.active_object
-        props = roundedProfileObject.RoundedProfileProps[0]
-        type = props.type
-        adjust = StrategyFactory.getTypeAdjust(type)
+        props = Updater.getPropertiesFromContext(self, context)
+        profileType = props.type
+        previousCoordSystem = props.coordSystem
+        props.coordSystem = 'XY'  # this is to allow changing profileType in XY coords space
+        adjust = StrategyFactory.getTypeAdjust(profileType)
         adjust(props)
+        props.coordSystem = previousCoordSystem  # switch back to original coords system
         Updater.updateProfile(self, context)
-    
+
     @staticmethod
     def updateProfile(self, context):
         o = bpy.context.active_object
@@ -213,13 +227,15 @@ class Updater():
                 sidesAccumulator = sidesAccumulator + c.sides
         roundedProfileObject.RoundedProfileProps[0].totalSides = sidesAccumulator
 
+    @staticmethod
+    def getPropertiesFromContext(self, context):
+        roundedProfileObject = bpy.context.active_object
+        props = roundedProfileObject.RoundedProfileProps[0]
+        return props
 ##################################
 class StrategyFactory():
     @staticmethod
     def getDrawStrategy(drawMode, roundedProfileType):
-        print("getDrawStrategy")
-        print(str(drawMode))
-        print(str(roundedProfileType))
         if drawMode == 'Corners':
             return drawModeCorners
         elif drawMode == 'Connections':
@@ -229,7 +245,6 @@ class StrategyFactory():
         elif drawMode == 'Merged result' and roundedProfileType != 'Curve':
             return drawModeMergedResult
         elif drawMode == 'Merged result' and roundedProfileType == 'Curve':
-            print("drawModeMergedResultForCurve")
             return drawModeMergedResultForCurve
 
     @staticmethod
@@ -264,12 +279,12 @@ class StrategyFactory():
             return convertFromRefAngularToXY
 
     @staticmethod
-    def getTypeAdjust(type):
-        if type == 'Polygon':
+    def getTypeAdjust(profileType):
+        if profileType == 'Polygon':
             return adjustToPolygon
-        elif type == 'Curve':
+        elif profileType == 'Curve':
             return adjustToCurve
-        elif type == 'Chain':
+        elif profileType == 'Chain':
             return adjustToChain
 ##################################
 
@@ -277,6 +292,12 @@ def adjustToPolygon(properties):
     corners = properties.corners
     corners_count = len(corners)
     connections = properties.connections
+    previousNumOfCorners = properties.previousNumOfCorners
+
+    # if switching from chain remove additional
+    while corners_count > previousNumOfCorners:
+        corners.remove(corners_count - 1)
+        corners_count = len(corners)
 
     connections_count = len(connections)
     if(connections_count > corners_count):
@@ -292,6 +313,12 @@ def adjustToCurve(properties):
     corners = properties.corners
     corners_count = len(corners)
     connections = properties.connections
+    previousNumOfCorners = properties.previousNumOfCorners
+
+    # if switching from chain remove additional
+    while corners_count > previousNumOfCorners:
+        corners.remove(corners_count - 1)
+        corners_count = len(corners)
     
     connections_count = len(connections)
     if(connections_count >= corners_count):
@@ -305,7 +332,6 @@ def adjustToCurve(properties):
     
 
 def adjustToChain(properties):
-    # adjustToPolygon(properties)
     adjustToCurve(properties)
     corners = properties.corners
     baseCornersCount = len(corners)
@@ -318,36 +344,19 @@ def adjustToChain(properties):
     #        1                   5
     #          \  2' -  3'-  4'/
 
-    targetCornersCount = 2 * baseCornersCount - 2
-    print("adjustToChain 1")
-    for k in reversed(range(0, baseConnectionsCount - 1)):
-        print("connection ID:" + str(k))
+    for k in reversed(range(0, baseConnectionsCount)):
         connections.add()
         lastConnectionIndex = len(connections) - 1
         assignConnectionProperties(connections[lastConnectionIndex], connections[k])
-
-    print("adjustToChain 2")
     for i in reversed(range(1, baseCornersCount - 1)):
-        print("corner ID:" + str(i))
         corners.add()
         lastCornerIndex = len(corners) - 1
         assignCornerProperties(corners[lastCornerIndex], corners[i])
 
 
-
-    print("adjustToChain 3")
-
-
-
-
-
 def assignCornerProperties(target, source):
     target.x = source.x
     target.y = source.y
-    target.dx = source.dx
-    target.dy = source.dy
-    target.coordAngle = source.coordAngle
-    target.coordRadius = source.coordRadius
     target.flipAngle = source.flipAngle
     target.radius = source.radius
     target.sides = source.sides
@@ -464,11 +473,7 @@ def drawCornerAsArc(corner, bm):
     center = Vector((corner.x, corner.y, defaultZ))
     startPoint = Vector ((corner.startx, corner.starty, defaultZ))
     endPoint = Vector ((corner.endx, corner.endy, defaultZ))
-#     print("=== Corner ===")
-#     print("=== start ===")
-#     print(str(corner.startx) + " - " + str(corner.starty))
-#     print("=== end ===")
-#     print(str(corner.endx) + " - " + str(corner.endy))
+
     geomCalc = GeometryCalculator()
     angleDeg, angle = geomCalc.getPositiveAngleBetween3Points(startPoint, center, endPoint)
 
