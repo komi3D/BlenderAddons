@@ -253,8 +253,10 @@ class StrategyFactory():
             return drawOuterTangentConnection
         elif inout == 'Inner':
             return drawInnerTangentConnection
-        # TODO: add for lines, out-in and in-out
-
+        elif inout == 'Outer-Inner':
+            return drawOuterInnerTangentConnection
+        elif inout == 'Inner-Outer':
+            return drawInnerOuterTangentConnection
 
     @staticmethod
     def getConverterOnCoordsSystemChange(coords):
@@ -495,6 +497,7 @@ def drawConnections(corners, connections, bm):
 
 def drawConnection(corner1, corner2, connection, bm):
     drawTangentConnection = StrategyFactory.getDrawTangentStrategy(connection.inout)
+    print(drawTangentConnection)
     drawTangentConnection(corner1, corner2, connection, bm)
 
 def assignCornerEndPoint(corner, endPoint):
@@ -517,7 +520,7 @@ def assignCornerStartPoint(corner, startPoint):
         corner.starty = WRONG_FLOAT
         corner.startz = WRONG_FLOAT
 
-def drawInnerTangentConnection(corner1, corner2, connection, bm):
+def drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPoints):
     c1 = Vector((corner1.x, corner1.y, defaultZ))
     r1 = connection.radius - (corner1.radius)
     c2 = Vector((corner2.x, corner2.y, defaultZ))
@@ -540,62 +543,64 @@ def drawInnerTangentConnection(corner1, corner2, connection, bm):
             center = intersections[1]
         else:
             center = intersections[0]
+# getConnectionEndPointsForOuterTangent
+# getConnectionEndPoints
+    connectionStartPoint, connectionEndPoint = getConnectionEndPoints(geomCalc, center, c1, corner1.radius, c2, corner2.radius, connection.radius)
+    print ("----")
+    print (connectionStartPoint)
+    print (connectionEndPoint)
+    
+    assignCornerEndPoint(corner1, connectionStartPoint)
+    assignCornerStartPoint(corner2, connectionEndPoint)
 
-    c1ConnectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, corner1.radius)
-    c2ConnectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c2, corner2.radius)
-    assignCornerEndPoint(corner1, c1ConnectionStartPoint)
-    assignCornerStartPoint(corner2, c2ConnectionStartPoint)
-
-    angleDeg, angleRad = geomCalc.getPositiveAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
+    angleDeg, angleRad = geomCalc.getPositiveAngleBetween3Points(connectionStartPoint, center, connectionEndPoint)
 
     if connection.flipAngle:
         angleRad = -(2 * pi - angleRad)
 
     spinAxis = Vector((0, 0, 1))
-    v0 = bm.verts.new(c2ConnectionStartPoint)
+    v0 = bm.verts.new(connectionEndPoint)
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angleRad, steps = connection.sides, use_duplicate = False)
 
 
+def getConnectionEndPointsForInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
+    connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
+    connectionEndPoint = getFarthestTangencyPoint(geomCalc, center, c2, c2radius)
+    print ("INNER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
+    return connectionStartPoint, connectionEndPoint
+
+def getConnectionEndPointsForOuterTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
+    connectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connectionRadius)
+    connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
+    print ("OUTER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
+    return connectionStartPoint, connectionEndPoint
+
+def getConnectionEndPointsForOuterInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
+    connectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connectionRadius)
+    connectionEndPoint = getFarthestTangencyPoint(geomCalc, center, c2, c2radius)
+    print ("OUTER - INNER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
+    return connectionStartPoint, connectionEndPoint
+
+def getConnectionEndPointsForInnerOuterTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
+    connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
+    connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
+    print ("INNER - OUTER  - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
+    return connectionStartPoint, connectionEndPoint
+
+    
+def drawInnerTangentConnection(corner1, corner2, connection, bm):
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForInnerTangent)
 
 def drawOuterTangentConnection(corner1, corner2, connection, bm):
-    c1 = Vector((corner1.x, corner1.y, defaultZ))
-    r1 = corner1.radius + connection.radius
-    c2 = Vector((corner2.x, corner2.y, defaultZ))
-    r2 = corner2.radius + connection.radius
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForOuterTangent)
 
-    geomCalc = GeometryCalculator()
+def drawOuterInnerTangentConnection(corner1, corner2, connection, bm):
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForOuterInnerTangent)
 
-    intersections = geomCalc.getCircleIntersections(c1, r1, c2, r2)
-    if intersections == None:
-        assignCornerEndPoint(corner1, None)
-        assignCornerStartPoint(corner2, None)
-        return
+def drawInnerOuterTangentConnection(corner1, corner2, connection, bm):
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForInnerOuterTangent)
 
-    center = None
-
-    if len(intersections) == 1:
-        center = intersections[0]
-    elif len(intersections) == 2:
-        if not connection.flipCenter:
-            center = intersections[1]
-        else:
-            center = intersections[0]
-
-    c1ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connection.radius)
-    c2ConnectionStartPoint = getClosestTangencyPoint(geomCalc, c2, center, connection.radius)
-    assignCornerEndPoint(corner1, c1ConnectionStartPoint)
-    assignCornerStartPoint(corner2, c2ConnectionStartPoint)
-
-    angleDeg, angleRad = geomCalc.getPositiveAngleBetween3Points(c1ConnectionStartPoint, center, c2ConnectionStartPoint)
-
-    if connection.flipAngle :
-        angleRad = -(2 * pi - angleRad)
-
-    spinAxis = Vector((0, 0, 1))
-    v0 = bm.verts.new(c2ConnectionStartPoint)
-    result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
-                                   angle = angleRad, steps = connection.sides, use_duplicate = False)
 
 def getLineCircleIntersections(geomCalc, RefPoint, Center, Radius):
     lineAB1 = geomCalc.getCoefficientsForLineThrough2Points(RefPoint, Center)
@@ -614,6 +619,7 @@ def getClosestTangencyPoint(geomCalc, refPoint, center, radius):
 
     tangencyPoint = geomCalc.getClosestPointToRefPoint(lineCircleIntersections, refPoint)
     return tangencyPoint
+
 
 def getFarthestTangencyPoint(geomCalc, refPoint, center, radius):
     lineCircleIntersections = getLineCircleIntersections(geomCalc, refPoint, center, radius)
