@@ -520,11 +520,10 @@ def assignCornerStartPoint(corner, startPoint):
         corner.starty = WRONG_FLOAT
         corner.startz = WRONG_FLOAT
 
-def drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPoints):
+def drawTangentConnectionTemplate(corner1, corner2, connection, bm, getRadiusesForIntersections, getConnectionEndPoints):
     c1 = Vector((corner1.x, corner1.y, defaultZ))
-    r1 = connection.radius - (corner1.radius)
     c2 = Vector((corner2.x, corner2.y, defaultZ))
-    r2 = connection.radius - (corner2.radius)
+    r1, r2 = getRadiusesForIntersections(connection.radius, corner1.radius, corner2.radius)
 
     geomCalc = GeometryCalculator()
 
@@ -543,12 +542,8 @@ def drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectio
             center = intersections[1]
         else:
             center = intersections[0]
-# getConnectionEndPointsForOuterTangent
-# getConnectionEndPoints
+
     connectionStartPoint, connectionEndPoint = getConnectionEndPoints(geomCalc, center, c1, corner1.radius, c2, corner2.radius, connection.radius)
-    print ("----")
-    print (connectionStartPoint)
-    print (connectionEndPoint)
     
     assignCornerEndPoint(corner1, connectionStartPoint)
     assignCornerStartPoint(corner2, connectionEndPoint)
@@ -563,6 +558,26 @@ def drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectio
     result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = spinAxis, \
                                    angle = angleRad, steps = connection.sides, use_duplicate = False)
 
+
+def getRadiusesForInnerIntersections(connectionRadius, c1Radius, c2Radius):
+    r1 = connectionRadius - c1Radius
+    r2 = connectionRadius - c2Radius
+    return r1, r2
+
+def getRadiusesForOuterIntersections(connectionRadius, c1Radius, c2Radius):
+    r1 = connectionRadius + c1Radius
+    r2 = connectionRadius + c2Radius
+    return r1, r2
+
+def getRadiusesForInnerOuterIntersections(connectionRadius, c1Radius, c2Radius):
+    r1 = connectionRadius - c1Radius
+    r2 = connectionRadius + c2Radius
+    return r1, r2
+
+def getRadiusesForOuterInnerIntersections(connectionRadius, c1Radius, c2Radius):
+    r1 = connectionRadius + c1Radius
+    r2 = connectionRadius - c2Radius
+    return r1, r2
 
 def getConnectionEndPointsForInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
     connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
@@ -590,16 +605,20 @@ def getConnectionEndPointsForInnerOuterTangent(geomCalc, center, c1, c1radius, c
 
     
 def drawInnerTangentConnection(corner1, corner2, connection, bm):
-    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForInnerTangent)
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
+        getRadiusesForInnerIntersections, getConnectionEndPointsForInnerTangent)
 
 def drawOuterTangentConnection(corner1, corner2, connection, bm):
-    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForOuterTangent)
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
+        getRadiusesForOuterIntersections, getConnectionEndPointsForOuterTangent)
 
 def drawOuterInnerTangentConnection(corner1, corner2, connection, bm):
-    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForOuterInnerTangent)
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
+        getRadiusesForOuterInnerIntersections, getConnectionEndPointsForOuterInnerTangent)
 
 def drawInnerOuterTangentConnection(corner1, corner2, connection, bm):
-    drawTangentConnectionTemplate(corner1, corner2, connection, bm, getConnectionEndPointsForInnerOuterTangent)
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
+        getRadiusesForInnerOuterIntersections, getConnectionEndPointsForInnerOuterTangent)
 
 
 def getLineCircleIntersections(geomCalc, RefPoint, Center, Radius):
