@@ -498,55 +498,62 @@ def drawConnections(corners, connections, bm):
 
 def drawTangentLine(corner1, corner2, connection, bm):
     geomCalc = GeometryCalculator()
+    inout = connection.inout
 
     if (corner1.radius == corner2.radius):
-        drawTangentLineForEqualRadius(geomCalc, corner1, corner2, bm)
+        drawTangentLineForEqualRadius(geomCalc, corner1, corner2, inout, bm)
     else:
-        smallCircle = None
-        largeCircle = None
-        if (corner1.radius < corner2.radius):
-            smallCircle = corner1
-            largeCircle = corner2
-        else:
-            smallCircle = corner2
-            largeCircle = corner1
+        corner1TangentPoint, corner2TangentPoint = calculateLineTangentPoints(corner1, corner2, geomCalc, inout)
+        makeEdgeBetweenCorners(corner1, corner2, corner1TangentPoint, corner2TangentPoint, bm)
+
+def calculateLineTangentPoints(corner1, corner2, geomCalc, inout):
+    c1Center = Vector((corner1.x, corner1.y, defaultZ))
+    c2Center = Vector((corner2.x, corner2.y, defaultZ))
+    centerVector, centerVectorLen = geomCalc.getVectorAndLengthFrom2Points(c1Center, c2Center)
+
+    centerCircleRadius = 0.5 * centerVectorLen
+    centerCircleCenter = c1Center + 0.5 * centerVector
+    tempRadius = fabs(corner1.radius - corner2.radius)
+    intersections = None
+    largerCircle = None
+    if (corner1.radius > corner2.radius):
+        intersections = geomCalc.getCircleIntersections(c1Center, tempRadius, centerCircleCenter, centerCircleRadius)
+        largerCircle = c1Center
+    else:
+        intersections = geomCalc.getCircleIntersections(centerCircleCenter, centerCircleRadius, c2Center, tempRadius)
+        largerCircle = c2Center
+    # if intersections == None:
+    #    assignCornerEndPoint(corner1, None)
+    #    assignCornerStartPoint(corner2, None)
+    #    return
+    tempTangencyPoint = intersections[0]
+    if inout == 'Outer':
+        tempTangencyPoint = intersections[0]
+    elif inout == 'Inner':
+        tempTangencyPoint = intersections[1]
+
+    #tempTangencyPoint = geomCalc.getFarthestPointToRefPoint(intersections, Vector((0, 0, 0)))
+
+    radialVector, radialVectorLength = geomCalc.getVectorAndLengthFrom2Points(largerCircle, tempTangencyPoint)
+
+    c2TangentPoint = c2Center + radialVector * (corner2.radius / radialVectorLength)
+    c1TangentPoint = c1Center + radialVector * (corner1.radius / radialVectorLength)
+    return c1TangentPoint, c2TangentPoint
 
 
-        largeCircleCenter = Vector((largeCircle.x, largeCircle.y, defaultZ))
-        smallCircleCenter = Vector((smallCircle.x, smallCircle.y, defaultZ))
-        centerVector, centerVectorLen = geomCalc.getVectorAndLengthFrom2Points(smallCircleCenter, largeCircleCenter)
-
-        centerCircleRadius = 0.5 * centerVectorLen
-        centerCircleCenter = smallCircleCenter + 0.5 * centerVector
-        tempRadius = largeCircle.radius - smallCircle.radius
-        intersections = geomCalc.getCircleIntersections(largeCircleCenter, tempRadius, centerCircleCenter, centerCircleRadius)
-        if intersections == None:
-            assignCornerEndPoint(corner1, None)
-            assignCornerStartPoint(corner2, None)
-            return
-
-        # tempTangencyPoint = intersections[0]
-        tempTangencyPoint = geomCalc.getFarthestPointToRefPoint(intersections, Vector((0, 0, 0)))
-
-        radialVector, radialVectorLength = geomCalc.getVectorAndLengthFrom2Points(largeCircleCenter, tempTangencyPoint)
-
-        smallCircleTangentPoint = smallCircleCenter + radialVector * (smallCircle.radius / radialVectorLength)
-        largeCircleTangentPoint = largeCircleCenter + radialVector * (largeCircle.radius / radialVectorLength)
-
-        makeEdgeBetweenCorners(smallCircle, largeCircle, smallCircleTangentPoint, largeCircleTangentPoint, bm)
 
 
-
-
-
-
-def drawTangentLineForEqualRadius(geomCalc, corner1, corner2, bm):
+def drawTangentLineForEqualRadius(geomCalc, corner1, corner2, inout, bm):
     c1Vector = Vector((corner1.x, corner1.y, defaultZ))
     c2Vector = Vector((corner2.x, corner2.y, defaultZ))
 
     centerVector, centerVectorLen = geomCalc.getVectorAndLengthFrom2Points(c1Vector, c2Vector)
     perpendicularVector = geomCalc.getPerpendicularVector(centerVector)
     factor = corner1.radius / centerVectorLen
+    if inout == 'Outer':
+        factor = factor
+    elif inout == 'Inner':
+        factor = -factor
     v1Vector = c1Vector + perpendicularVector * factor
     v2Vector = c2Vector + perpendicularVector * factor
 
@@ -626,66 +633,66 @@ def drawTangentConnectionTemplate(corner1, corner2, connection, bm, getRadiusesF
                                    angle = angleRad, steps = connection.sides, use_duplicate = False)
 
 
-def getRadiusesForInnerIntersections(connectionRadius, c1Radius, c2Radius):
+def getRadiusesForOuterIntersections(connectionRadius, c1Radius, c2Radius):
     r1 = connectionRadius - c1Radius
     r2 = connectionRadius - c2Radius
     return r1, r2
 
-def getRadiusesForOuterIntersections(connectionRadius, c1Radius, c2Radius):
+def getRadiusesForInnerIntersections(connectionRadius, c1Radius, c2Radius):
     r1 = connectionRadius + c1Radius
-    r2 = connectionRadius + c2Radius
-    return r1, r2
-
-def getRadiusesForInnerOuterIntersections(connectionRadius, c1Radius, c2Radius):
-    r1 = connectionRadius - c1Radius
     r2 = connectionRadius + c2Radius
     return r1, r2
 
 def getRadiusesForOuterInnerIntersections(connectionRadius, c1Radius, c2Radius):
+    r1 = connectionRadius - c1Radius
+    r2 = connectionRadius + c2Radius
+    return r1, r2
+
+def getRadiusesForInnerOuterIntersections(connectionRadius, c1Radius, c2Radius):
     r1 = connectionRadius + c1Radius
     r2 = connectionRadius - c2Radius
     return r1, r2
 
-def getConnectionEndPointsForInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
+def getConnectionEndPointsForOuterTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
     connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
     connectionEndPoint = getFarthestTangencyPoint(geomCalc, center, c2, c2radius)
-    print ("INNER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
-    return connectionStartPoint, connectionEndPoint
-
-def getConnectionEndPointsForOuterTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
-    connectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connectionRadius)
-    connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
     print ("OUTER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
     return connectionStartPoint, connectionEndPoint
 
-def getConnectionEndPointsForOuterInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
+def getConnectionEndPointsForInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
     connectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connectionRadius)
-    connectionEndPoint = getFarthestTangencyPoint(geomCalc, center, c2, c2radius)
-    print ("OUTER - INNER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
+    connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
+    print ("INNER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
     return connectionStartPoint, connectionEndPoint
 
 def getConnectionEndPointsForInnerOuterTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
-    connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
-    connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
+    connectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connectionRadius)
+    connectionEndPoint = getFarthestTangencyPoint(geomCalc, center, c2, c2radius)
     print ("INNER - OUTER  - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
     return connectionStartPoint, connectionEndPoint
 
-    
-def drawInnerTangentConnection(corner1, corner2, connection, bm):
-    drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
-        getRadiusesForInnerIntersections, getConnectionEndPointsForInnerTangent)
+def getConnectionEndPointsForOuterInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
+    connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
+    connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
+    print ("OUTER - INNER  - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
+    return connectionStartPoint, connectionEndPoint
 
+    
 def drawOuterTangentConnection(corner1, corner2, connection, bm):
     drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
         getRadiusesForOuterIntersections, getConnectionEndPointsForOuterTangent)
 
-def drawOuterInnerTangentConnection(corner1, corner2, connection, bm):
+def drawInnerTangentConnection(corner1, corner2, connection, bm):
     drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
-        getRadiusesForOuterInnerIntersections, getConnectionEndPointsForOuterInnerTangent)
+        getRadiusesForInnerIntersections, getConnectionEndPointsForInnerTangent)
 
 def drawInnerOuterTangentConnection(corner1, corner2, connection, bm):
     drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
         getRadiusesForInnerOuterIntersections, getConnectionEndPointsForInnerOuterTangent)
+
+def drawOuterInnerTangentConnection(corner1, corner2, connection, bm):
+    drawTangentConnectionTemplate(corner1, corner2, connection, bm, \
+        getRadiusesForOuterInnerIntersections, getConnectionEndPointsForOuterInnerTangent)
 
 
 def getLineCircleIntersections(geomCalc, RefPoint, Center, Radius):

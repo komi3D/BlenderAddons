@@ -200,9 +200,10 @@ class RoundedProfileConnectionsPanel(bpy.types.Panel):
         if properties.masterConnectionEnabled:
             row = box.row()
             row.prop(properties, 'masterConnectionType', expand = True)
+            row = box.row()
+            row.prop(properties, 'masterConnectionInout', expand = True)
             if properties.masterConnectionType == 'Arc':
-                row = box.row()
-                row.prop(properties, 'masterConnectionInout', expand = True)
+
                 row = box.row()
                 row.prop(properties, 'masterConnectionRadius')
                 row.prop(properties, 'masterConnectionSides')
