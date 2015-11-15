@@ -495,10 +495,77 @@ def drawConnections(corners, connections, bm):
     if connectionsLastIndex == cornersLastIndex:
         drawConnection(corners[cornersLastIndex], corners[0], connections[cornersLastIndex], bm)
 
+
+def drawTangentLine(corner1, corner2, connection, bm):
+    geomCalc = GeometryCalculator()
+
+    if (corner1.radius == corner2.radius):
+        drawTangentLineForEqualRadius(geomCalc, corner1, corner2, bm)
+    else:
+        smallCircle = None
+        largeCircle = None
+        if (corner1.radius < corner2.radius):
+            smallCircle = corner1
+            largeCircle = corner2
+        else:
+            smallCircle = corner2
+            largeCircle = corner1
+
+
+        largeCircleCenter = Vector((largeCircle.x, largeCircle.y, defaultZ))
+        smallCircleCenter = Vector((smallCircle.x, smallCircle.y, defaultZ))
+        centerVector, centerVectorLen = geomCalc.getVectorAndLengthFrom2Points(smallCircleCenter, largeCircleCenter)
+
+        centerCircleRadius = 0.5 * centerVectorLen
+        centerCircleCenter = smallCircleCenter + 0.5 * centerVector
+        tempRadius = largeCircle.radius - smallCircle.radius
+        intersections = geomCalc.getCircleIntersections(largeCircleCenter, tempRadius, centerCircleCenter, centerCircleRadius)
+        if intersections == None:
+            assignCornerEndPoint(corner1, None)
+            assignCornerStartPoint(corner2, None)
+            return
+
+        # tempTangencyPoint = intersections[0]
+        tempTangencyPoint = geomCalc.getFarthestPointToRefPoint(intersections, Vector((0, 0, 0)))
+
+        radialVector, radialVectorLength = geomCalc.getVectorAndLengthFrom2Points(largeCircleCenter, tempTangencyPoint)
+
+        smallCircleTangentPoint = smallCircleCenter + radialVector * (smallCircle.radius / radialVectorLength)
+        largeCircleTangentPoint = largeCircleCenter + radialVector * (largeCircle.radius / radialVectorLength)
+
+        makeEdgeBetweenCorners(smallCircle, largeCircle, smallCircleTangentPoint, largeCircleTangentPoint, bm)
+
+
+
+
+
+
+def drawTangentLineForEqualRadius(geomCalc, corner1, corner2, bm):
+    c1Vector = Vector((corner1.x, corner1.y, defaultZ))
+    c2Vector = Vector((corner2.x, corner2.y, defaultZ))
+
+    centerVector, centerVectorLen = geomCalc.getVectorAndLengthFrom2Points(c1Vector, c2Vector)
+    perpendicularVector = geomCalc.getPerpendicularVector(centerVector)
+    factor = corner1.radius / centerVectorLen
+    v1Vector = c1Vector + perpendicularVector * factor
+    v2Vector = c2Vector + perpendicularVector * factor
+
+    makeEdgeBetweenCorners(corner1, corner2, v1Vector, v2Vector, bm)
+
+def makeEdgeBetweenCorners(corner1, corner2, v1Vector, v2Vector, bm):
+    v1 = bm.verts.new(v1Vector)
+    v2 = bm.verts.new(v2Vector)
+    assignCornerEndPoint(corner1, v1Vector)
+    assignCornerStartPoint(corner2, v2Vector)
+    bm.edges.new([v1, v2])
+
 def drawConnection(corner1, corner2, connection, bm):
-    drawTangentConnection = StrategyFactory.getDrawTangentStrategy(connection.inout)
-    print(drawTangentConnection)
-    drawTangentConnection(corner1, corner2, connection, bm)
+    if (connection.type == 'Arc'):
+        drawTangentConnection = StrategyFactory.getDrawTangentStrategy(connection.inout)
+        print(drawTangentConnection)
+        drawTangentConnection(corner1, corner2, connection, bm)
+    elif (connection.type == 'Line'):
+        drawTangentLine(corner1, corner2, connection, bm)
 
 def assignCornerEndPoint(corner, endPoint):
     if endPoint != None:
