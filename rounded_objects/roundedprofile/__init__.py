@@ -43,8 +43,7 @@ if TESTS == False:
     if "local_var" in locals():
         import imp
         imp.reload(RoundedProfilePanel)
-        imp.reload(RoundedProfileCornersPanel)
-        imp.reload(RoundedProfileConnectionsPanel)
+        imp.reload(RoundedProfileDetailsPanel)
         imp.reload(AddRoundedProfile)
         imp.reload(ConnectionProperties)
         imp.reload(CornerProperties)
@@ -53,8 +52,7 @@ if TESTS == False:
 
     else:
         from roundedprofile.mesh_add_rounded_panel import RoundedProfilePanel
-        from roundedprofile.mesh_add_rounded_panel import RoundedProfileCornersPanel
-        from roundedprofile.mesh_add_rounded_panel import RoundedProfileConnectionsPanel
+        from roundedprofile.mesh_add_rounded_panel import RoundedProfileDetailsPanel
         from roundedprofile.custom_properties import ConnectionProperties
         from roundedprofile.custom_properties import CornerProperties
         from roundedprofile.custom_properties import RoundedProfileProperties
@@ -68,8 +66,7 @@ if TESTS == False:
 
     def register():
         bpy.utils.register_class(RoundedProfilePanel)
-        bpy.utils.register_class(RoundedProfileCornersPanel)
-        bpy.utils.register_class(RoundedProfileConnectionsPanel)
+        bpy.utils.register_class(RoundedProfileDetailsPanel)
         bpy.utils.register_class(AddRoundedProfile)
         bpy.utils.register_class(CornerProperties)
         bpy.utils.register_class(ConnectionProperties)
@@ -81,8 +78,7 @@ if TESTS == False:
 
     def unregister():
         bpy.utils.unregister_class(RoundedProfilePanel)
-        bpy.utils.unregister_class(RoundedProfileCornersPanel)
-        bpy.utils.unregister_class(RoundedProfileConnectionsPanel)
+        bpy.utils.unregister_class(RoundedProfileDetailsPanel)
         bpy.utils.unregister_class(AddRoundedProfile)
         bpy.utils.unregister_class(CornerProperties)
         bpy.utils.unregister_class(ConnectionProperties)
