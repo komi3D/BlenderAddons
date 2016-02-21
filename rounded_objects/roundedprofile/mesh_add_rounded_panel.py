@@ -134,8 +134,9 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
             box = layout.box()
             self.addCornerToMenu(id + 1, box, properties.corners[id], properties.masterCornerEnabled, coordSystem)
             if not properties.masterConnectionEnabled:
-                box = layout.box()
-                self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
+                if (properties.type == 'Polygon') or (properties.type == 'Chain') or (properties.type == 'Curve' and id < numOfCorners - 1):
+                    box = layout.box()
+                    self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
 
     def addCornerToMenu(self, id, box, corners, master, coordSystem):
         row = box.row()
