@@ -176,9 +176,11 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
             box.label("Chain Connection " + str(id))
         row = box.row()
         row.prop(connections, 'type', expand = True)
+
+        row = box.row()
+        row.prop(connections, 'inout', expand = True)
+
         if connections.type == 'Arc' :
-            row = box.row()
-            row.prop(connections, 'inout', expand = True)
             row = box.row()
             row.prop(connections, 'radius')
             row.prop(connections, 'sides')

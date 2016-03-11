@@ -259,6 +259,13 @@ class StrategyFactory():
             return drawInnerOuterTangentConnection
 
     @staticmethod
+    def getDrawTangentLineStrategy(inout):
+        if (inout == 'Outer' or inout == 'Inner'):
+            return drawTangentLine
+        else:
+            return drawTangentLineMixed
+
+    @staticmethod
     def getConverterOnCoordsSystemChange(coords):
         if coords == 'XY':
             return convertXYFake
@@ -495,6 +502,14 @@ def drawConnections(corners, connections, bm):
     if connectionsLastIndex == cornersLastIndex:
         drawConnection(corners[cornersLastIndex], corners[0], connections[cornersLastIndex], bm)
 
+def drawTangentLineMixed(corner1, corner2, connection, bm):
+    geomCalc = GeometryCalculator()
+    inout = connection.inout
+
+    # TODO: move this to drawTangentLineStrategy...
+    if inout == 'Outer-Inner' or inout == 'Inner-Outer':
+        corner1TangentPoint, corner2TangentPoint = calculateMixedLineTangentPoints(corner1, corner2, geomCalc, inout)
+        makeEdgeBetweenCorners(corner1, corner2, corner1TangentPoint, corner2TangentPoint, bm)
 
 def drawTangentLine(corner1, corner2, connection, bm):
     geomCalc = GeometryCalculator()
@@ -540,8 +555,49 @@ def calculateLineTangentPoints(corner1, corner2, geomCalc, inout):
     c1TangentPoint = c1Center + radialVector * (corner1.radius / radialVectorLength)
     return c1TangentPoint, c2TangentPoint
 
+# calculateMixedLineTangentPoints
+def calculateMixedLineTangentPoints(corner1, corner2, geomCalc, inout):
+    c1Center = Vector((corner1.x, corner1.y, defaultZ))
+    c2Center = Vector((corner2.x, corner2.y, defaultZ))
+    r1 = corner1.radius
+    r2 = corner2.radius
+    c1TangentPoint = None
+    c2TangentPoint = None
+
+    centerVector, centerVectorLen = geomCalc.getVectorAndLengthFrom2Points(c1Center, c2Center)
+
+    sumOfRadius = r1 + r2
+    # It only makes sense to calculate In-Out tangent line if center vector lenght is higher then sum of radius
+    if centerVectorLen <= sumOfRadius:
+        return c1TangentPoint, c2TangentPoint
 
 
+    Qc2Distance = centerVectorLen / (1 + (r1 / r2))
+    c1QDistance = Qc2Distance * (r1 / r2)
+    # Q is the point on C1C2 line which is intersected by the in-out tangent line
+    Q = c1Center + (c1QDistance / centerVectorLen) * centerVector
+
+    c1QVector, c1QVectorLen = geomCalc.getVectorAndLengthFrom2Points(c1Center, Q)
+
+    firstHelperCircleRadius = 0.5 * c1QDistance
+    firstHelperCircleCenter = c1Center + 0.5 * c1QVector
+    firstCircleIntersections = None
+    firstCircleIntersections = geomCalc.getCircleIntersections(c1Center, r1, firstHelperCircleCenter, firstHelperCircleRadius)
+
+    Qc2Vector, Qc2VectorLen = geomCalc.getVectorAndLengthFrom2Points(Q, c2Center)
+    secondHelperCircleRadius = 0.5 * Qc2Distance
+    secondHelperCircleCenter = c2Center - 0.5 * Qc2Vector
+    secondCircleIntersections = None
+    secondCircleIntersections = geomCalc.getCircleIntersections(secondHelperCircleCenter, secondHelperCircleRadius, c2Center, r2)
+
+    if inout == 'Outer-Inner':
+        c1TangentPoint = firstCircleIntersections[0]
+        c2TangentPoint = secondCircleIntersections[1]
+    elif inout == 'Inner-Outer':
+        c1TangentPoint = firstCircleIntersections[1]
+        c2TangentPoint = secondCircleIntersections[0]
+
+    return c1TangentPoint, c2TangentPoint
 
 def drawTangentLineForEqualRadius(geomCalc, corner1, corner2, inout, bm):
     c1Vector = Vector((corner1.x, corner1.y, defaultZ))
@@ -572,6 +628,7 @@ def drawConnection(corner1, corner2, connection, bm):
         print(drawTangentConnection)
         drawTangentConnection(corner1, corner2, connection, bm)
     elif (connection.type == 'Line'):
+        drawTangentLine = StrategyFactory.getDrawTangentLineStrategy(connection.inout)
         drawTangentLine(corner1, corner2, connection, bm)
 
 def assignCornerEndPoint(corner, endPoint):
