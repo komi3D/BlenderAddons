@@ -593,6 +593,10 @@ def drawTangentLineForEqualRadius(geomCalc, corner1, corner2, inout, bm):
 
     centerVector, centerVectorLen = geomCalc.getVectorAndLengthFrom2Points(c1Vector, c2Vector)
     perpendicularVector = geomCalc.getPerpendicularVector(centerVector)
+
+    if (centerVectorLen == 0):
+        return
+
     factor = corner1.radius / centerVectorLen
     if inout == 'Outer':
         factor = factor
@@ -670,7 +674,8 @@ def drawTangentConnectionTemplate(corner1, corner2, connection, bm, getRadiusesF
     assignCornerStartPoint(corner2, connectionEndPoint)
 
     angleDeg, angleRad = geomCalc.getPositiveAngleBetween3Points(connectionStartPoint, center, connectionEndPoint)
-
+    if (angleDeg == None) or (angleRad == None):
+        return
     if connection.flipAngle:
         angleRad = -(2 * pi - angleRad)
 

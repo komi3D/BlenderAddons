@@ -28,6 +28,8 @@ class GeometryCalculator(object):
 
 
     def getVectorAndLengthFrom2Points(self, c1, c2):
+        if (c1 == None) or (c2 == None):
+            return (None, None)
         center_vec = c2 - c1
         center_vec_len = center_vec.length
         return (center_vec, center_vec_len)
@@ -118,6 +120,9 @@ class GeometryCalculator(object):
         p1p3Vector, p1p3Length = self.getVectorAndLengthFrom2Points(point1, point3)
         p2p3Vector, p2p3Length = self.getVectorAndLengthFrom2Points(point2, point3)
 
+        if (p2p1Vector == None) or (p1p3Vector == None) or (p2p3Vector == None):
+            return (None, None)
+
         if p2p1Vector.normalized() == p2p3Vector.normalized() :
             angle = 0.0
             return angle, angle
@@ -147,6 +152,9 @@ class GeometryCalculator(object):
 
     def getPositiveAngleBetween3Points(self, point1, point2, point3):
         angleDeg, angle = self.getAngleBetween3Points(point1, point2, point3)
+        if angle == None:
+            return None, None
+
         if angle < 0:
             angle = (2 * pi) + angle
         return degrees(angle), angle
