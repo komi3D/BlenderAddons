@@ -85,25 +85,14 @@ class Updater():
     def adjustNumberOfCornersAndConnections(self, context):
         props = context.object.RoundedProfileProps[0]
         uiNum = props.numOfCorners
-
-
         previousType = props.type
-#         print(" ======= ")
-#         print("adjustNumberOfCornersAndConnections - prevtype: " + str(previousType))
-#         print("adjustNumberOfCornersAndConnections - len(corners) " + str(len(props.corners)))
         props.type = 'Polygon'
         actualNum = len(props.corners)
         delta = uiNum - actualNum
-#         print("adjustNumberOfCornersAndConnections - len(corners) in Polygon: " + str(len(props.corners)))
-
         Updater.adjustCornersAndConnectionsInPolygonMode(props, actualNum, delta)
-#         print("adjustNumberOfCornersAndConnections - len(corners) in Polygon after adjust: " + str(len(props.corners)))
         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
-#         print("adjustNumberOfCornersAndConnections - len(corners) in Polygon after update: " + str(len(props.corners)))
         props.previousNumOfCorners = uiNum
         props.type = previousType
-#         print("adjustNumberOfCornersAndConnections: " + str(len(props.corners)))
-
 
     @staticmethod
     def updateConnectionsRadiusForAutoadjust(self, context):
@@ -505,11 +494,8 @@ def drawConnections(corners, connections, bm):
 def drawTangentLineMixed(corner1, corner2, connection, bm):
     geomCalc = GeometryCalculator()
     inout = connection.inout
-
-    # TODO: move this to drawTangentLineStrategy...
-    if inout == 'Outer-Inner' or inout == 'Inner-Outer':
-        corner1TangentPoint, corner2TangentPoint = calculateMixedLineTangentPoints(corner1, corner2, geomCalc, inout)
-        makeEdgeBetweenCorners(corner1, corner2, corner1TangentPoint, corner2TangentPoint, bm)
+    corner1TangentPoint, corner2TangentPoint = calculateMixedLineTangentPoints(corner1, corner2, geomCalc, inout)
+    makeEdgeBetweenCorners(corner1, corner2, corner1TangentPoint, corner2TangentPoint, bm)
 
 def drawTangentLine(corner1, corner2, connection, bm):
     geomCalc = GeometryCalculator()
@@ -537,10 +523,12 @@ def calculateLineTangentPoints(corner1, corner2, geomCalc, inout):
     else:
         intersections = geomCalc.getCircleIntersections(centerCircleCenter, centerCircleRadius, c2Center, tempRadius)
         largerCircle = c2Center
-    # if intersections == None:
-    #    assignCornerEndPoint(corner1, None)
-    #    assignCornerStartPoint(corner2, None)
-    #    return
+
+    if intersections == None or len(intersections) == 1:
+        assignCornerEndPoint(corner1, None)
+        assignCornerStartPoint(corner2, None)
+        return None, None
+
     tempTangencyPoint = intersections[0]
     if inout == 'Outer':
         tempTangencyPoint = intersections[0]
@@ -616,6 +604,9 @@ def drawTangentLineForEqualRadius(geomCalc, corner1, corner2, inout, bm):
     makeEdgeBetweenCorners(corner1, corner2, v1Vector, v2Vector, bm)
 
 def makeEdgeBetweenCorners(corner1, corner2, v1Vector, v2Vector, bm):
+    if (v1Vector == None) or (v2Vector == None) :
+        return
+
     v1 = bm.verts.new(v1Vector)
     v2 = bm.verts.new(v2Vector)
     assignCornerEndPoint(corner1, v1Vector)
@@ -625,7 +616,6 @@ def makeEdgeBetweenCorners(corner1, corner2, v1Vector, v2Vector, bm):
 def drawConnection(corner1, corner2, connection, bm):
     if (connection.type == 'Arc'):
         drawTangentConnection = StrategyFactory.getDrawTangentStrategy(connection.inout)
-        print(drawTangentConnection)
         drawTangentConnection(corner1, corner2, connection, bm)
     elif (connection.type == 'Line'):
         drawTangentLine = StrategyFactory.getDrawTangentLineStrategy(connection.inout)
@@ -713,25 +703,21 @@ def getRadiusesForInnerOuterIntersections(connectionRadius, c1Radius, c2Radius):
 def getConnectionEndPointsForOuterTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
     connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
     connectionEndPoint = getFarthestTangencyPoint(geomCalc, center, c2, c2radius)
-    print ("OUTER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
     return connectionStartPoint, connectionEndPoint
 
 def getConnectionEndPointsForInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
     connectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connectionRadius)
     connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
-    print ("INNER - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
     return connectionStartPoint, connectionEndPoint
 
 def getConnectionEndPointsForInnerOuterTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
     connectionStartPoint = getClosestTangencyPoint(geomCalc, c1, center, connectionRadius)
     connectionEndPoint = getFarthestTangencyPoint(geomCalc, center, c2, c2radius)
-    print ("INNER - OUTER  - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
     return connectionStartPoint, connectionEndPoint
 
 def getConnectionEndPointsForOuterInnerTangent(geomCalc, center, c1, c1radius, c2, c2radius, connectionRadius):
     connectionStartPoint = getFarthestTangencyPoint(geomCalc, center, c1, c1radius)
     connectionEndPoint = getClosestTangencyPoint(geomCalc, c2, center, connectionRadius)
-    print ("OUTER - INNER  - " + str(connectionStartPoint) + " - " + str(connectionEndPoint))
     return connectionStartPoint, connectionEndPoint
 
     
