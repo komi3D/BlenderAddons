@@ -60,6 +60,7 @@ class Updater():
         props = Updater.getPropertiesFromContext(self, context)
         props.corners.remove(id)
         props.connections.remove(id)
+        props.previousNumOfCorners = len(props.corners)
         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
 
 
@@ -73,7 +74,7 @@ class Updater():
         targetIndex = id + 1
         props.corners.move(lastIndex, targetIndex)
         assignCornerProperties(props.corners[targetIndex], props.corners[id])
-
+        props.previousNumOfCorners = length
 
         props.connections.add()
         length = len(props.connections)
