@@ -23,7 +23,7 @@ bl_info = {
     "category": "Mesh",
     'author': 'Piotr Komisarczyk (komi3D)',
     'version': (0, 0, 1),
-    'blender': (2, 7, 4),
+    'blender': (2, 7, 6),
     'location': 'SHIFT-A > Mesh > Rounded profile',
     'description': 'Add rounded profile',
     'wiki_url': '',
@@ -50,6 +50,7 @@ if TESTS == False:
         imp.reload(RoundedProfileProperties)
         imp.reload(Updater)
         imp.reload(RoundedProfileRemoveCorner)
+        imp.reload(RoundedProfileAddCorner)
 
     else:
         from roundedprofile.mesh_add_rounded_panel import RoundedProfilePanel
@@ -60,6 +61,7 @@ if TESTS == False:
         from roundedprofile.mesh_add_rounded_profile import AddRoundedProfile
         from roundedprofile.mesh_updater import Updater
         from roundedprofile.rounded_profile_ops import RoundedProfileRemoveCorner
+        from roundedprofile.rounded_profile_ops import RoundedProfileAddCorner
 
     local_var = True
 
@@ -68,6 +70,7 @@ if TESTS == False:
 
     def register():
         bpy.utils.register_class(RoundedProfileRemoveCorner)
+        bpy.utils.register_class(RoundedProfileAddCorner)
         bpy.utils.register_class(RoundedProfilePanel)
         bpy.utils.register_class(RoundedProfileDetailsPanel)
         bpy.utils.register_class(AddRoundedProfile)
@@ -82,6 +85,7 @@ if TESTS == False:
 
     def unregister():
         bpy.utils.unregister_class(RoundedProfileRemoveCorner)
+        bpy.utils.unregister_class(RoundedProfileAddCorner)
         bpy.utils.unregister_class(RoundedProfilePanel)
         bpy.utils.unregister_class(RoundedProfileDetailsPanel)
         bpy.utils.unregister_class(AddRoundedProfile)

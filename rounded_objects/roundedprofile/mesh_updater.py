@@ -62,44 +62,65 @@ class Updater():
         props.connections.remove(id)
         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
 
-    @staticmethod
-    def adjustCornersAndConnectionsInPolygonMode(rpp, actualNum, delta):
-        if delta > 0:
-            for cont in range(0, delta):
-                rpp.corners.add()
-                rpp.connections.add()
-        
-        elif delta < 0:
-            for cont in range(0, (delta) * (-1)):
-                rpp.corners.remove(actualNum - 1)
-                rpp.connections.remove(actualNum - 1)
 
     @staticmethod
-    def adjustCornersAndConnectionsInChainMode(rpp, actualNum, delta):
-        if delta > 0:
-            for cont in range(0, delta):
-                rpp.corners.add()
-                rpp.connections.add()
+    def addCornerToRoundedProfile (self, context, id):
+        props = Updater.getPropertiesFromContext(self, context)
 
-        elif delta < 0:
-            for cont in range(0, (delta) * (-1)):
-                rpp.corners.remove(actualNum - 1)
-                rpp.connections.remove(actualNum - 1)
-                # TODO: connections number
+        props.corners.add()
+        length = len(props.corners)
+        lastIndex = length - 1
+        targetIndex = id + 1
+        props.corners.move(lastIndex, targetIndex)
+        assignCornerProperties(props.corners[targetIndex], props.corners[id])
 
 
-    @staticmethod
-    def adjustNumberOfCornersAndConnections(self, context):
-        props = context.object.RoundedProfileProps[0]
-        uiNum = props.numOfCorners
-        previousType = props.type
-        props.type = 'Polygon'
-        actualNum = len(props.corners)
-        delta = uiNum - actualNum
-        Updater.adjustCornersAndConnectionsInPolygonMode(props, actualNum, delta)
+        props.connections.add()
+        length = len(props.connections)
+        lastIndex = length - 1
+        props.connections.move(lastIndex, targetIndex)
+
         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
-        props.previousNumOfCorners = uiNum
-        props.type = previousType
+
+
+#     @staticmethod
+#     def adjustCornersAndConnectionsInPolygonMode(rpp, actualNum, delta):
+#         if delta > 0:
+#             for cont in range(0, delta):
+#                 rpp.corners.add()
+#                 rpp.connections.add()
+#
+#         elif delta < 0:
+#             for cont in range(0, (delta) * (-1)):
+#                 rpp.corners.remove(actualNum - 1)
+#                 rpp.connections.remove(actualNum - 1)
+
+#    @staticmethod
+#     def adjustCornersAndConnectionsInChainMode(rpp, actualNum, delta):
+#         if delta > 0:
+#             for cont in range(0, delta):
+#                 rpp.corners.add()
+#                 rpp.connections.add()
+#
+#         elif delta < 0:
+#             for cont in range(0, (delta) * (-1)):
+#                 rpp.corners.remove(actualNum - 1)
+#                 rpp.connections.remove(actualNum - 1)
+#                 # TODO: connections number
+
+
+#    @staticmethod
+#     def adjustNumberOfCornersAndConnections(self, context):
+#         props = context.object.RoundedProfileProps[0]
+#         uiNum = props.numOfCorners
+#         previousType = props.type
+#         props.type = 'Polygon'
+#         actualNum = len(props.corners)
+#         delta = uiNum - actualNum
+#         Updater.adjustCornersAndConnectionsInPolygonMode(props, actualNum, delta)
+#         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
+#         props.previousNumOfCorners = uiNum
+#         props.type = previousType
 
     @staticmethod
     def updateConnectionsRadiusForAutoadjust(self, context):

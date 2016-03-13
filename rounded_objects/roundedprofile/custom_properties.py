@@ -102,8 +102,8 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
                                 description = 'Number of sides in the whole profile',)
 
 
-    numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 1, max = 100, default = 2,
-                                description = 'Number of corners', update = Updater.adjustNumberOfCornersAndConnections)
+#     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 1, max = 100, default = 2,
+#                                 description = 'Number of corners', update = Updater.adjustNumberOfCornersAndConnections)
 
     previousNumOfCorners = bpy.props.IntProperty(name = 'Previous number of corners' , min = 1, max = 100, default = 2,
                                 description = 'Previous number of corners')

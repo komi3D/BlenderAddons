@@ -112,9 +112,9 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
 
         self.drawCornersAndConnections(layout, properties, box)
 
-        box = layout.box()
-        row = box.row()
-        row.prop(properties, 'numOfCorners')
+#         box = layout.box()
+#         row = box.row()
+#         row.prop(properties, 'numOfCorners')
 
 
     def drawMasterCornerProperties(self, layout, properties, box):
@@ -128,9 +128,9 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
         return box, row
 
     def drawCornersAndConnections(self, layout, properties, box):
-        numOfCorners = properties.numOfCorners
+        numOfCorners = len(properties.corners)
         coordSystem = properties.coordSystem
-        for id in range(0, len(properties.corners)):
+        for id in range(0, numOfCorners):
             box = layout.box()
             self.addCornerToMenu(id, box, properties.corners[id], properties.masterCornerEnabled, coordSystem)
             if not properties.masterConnectionEnabled:
@@ -155,7 +155,9 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
 
         row = box.row()
         op = row.operator("mesh.rounded_profile_remove_corner")
-        op.cornerId = id  # TODO: adjust ID - 1 !!!
+        op.cornerId = id
+        op = row.operator("mesh.rounded_profile_add_corner")
+        op.cornerId = id
 
     def addCoordsForCorner(self, corners, coordSystem, row):
         if coordSystem == 'XY':

@@ -33,10 +33,23 @@ class RoundedProfileRemoveCorner(bpy.types.Operator):
 
     def execute(self, context):
         if bpy.context.mode == "OBJECT":
-            print("self.cornerId:", self.cornerId)
             Updater.removeCornerFromRoundedProfile(self, context, self.cornerId)
             return {'FINISHED'}
         else:
             self.report({'WARNING'}, "RoundedProfile:remove corner works only in Object mode")
+            return {'CANCELLED'}
+
+class RoundedProfileAddCorner(bpy.types.Operator):
+    bl_idname = "mesh.rounded_profile_add_corner"
+    bl_label = "Add"
+    bl_options = {'REGISTER', 'UNDO'}
+    cornerId = bpy.props.IntProperty()
+
+    def execute(self, context):
+        if bpy.context.mode == "OBJECT":
+            Updater.addCornerToRoundedProfile(self, context, self.cornerId)
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, "RoundedProfile:add corner works only in Object mode")
             return {'CANCELLED'}
 
