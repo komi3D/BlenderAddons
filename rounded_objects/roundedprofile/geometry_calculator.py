@@ -203,6 +203,8 @@ class GeometryCalculator(object):
         # (x - a)**2 + (y - b)**2 = r**2 - circle equation
         # y = A*x + B - line equation
         # f * x**2 + g * x + h = 0 - quadratic equation
+        if (lineAB == None) or (circleMidPoint == None):
+            return None
         A, B = lineAB
         a, b, c = circleMidPoint
         f = 1 + (A ** 2)

@@ -77,9 +77,7 @@ if TESTS == False:
         bpy.utils.register_class(CornerProperties)
         bpy.utils.register_class(ConnectionProperties)
         bpy.utils.register_class(RoundedProfileProperties)
-
         bpy.types.Object.RoundedProfileProps = bpy.props.CollectionProperty(type = RoundedProfileProperties)
-
         bpy.types.INFO_MT_mesh_add.append(menu_func)
         pass
 
@@ -92,7 +90,6 @@ if TESTS == False:
         bpy.utils.unregister_class(CornerProperties)
         bpy.utils.unregister_class(ConnectionProperties)
         bpy.utils.unregister_class(RoundedProfileProperties)
-
         bpy.types.INFO_MT_mesh_add.remove(menu_func)
         pass
 

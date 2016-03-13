@@ -33,6 +33,12 @@ class CornerProperties(bpy.types.PropertyGroup):
     coordRadius = bpy.props.FloatProperty(name = 'Radius' , min = 0, max = 100000, default = 0, precision = 1,
                                 description = 'Angular coordinate radius', update = Updater.updateCoordinatesOnCoordChange)
 
+    deltaCoordAngle = bpy.props.FloatProperty(name = 'Delta angle' , min = -360, max = 360, default = 0, precision = 1,
+                                description = 'Delta Angular coordinate angle', update = Updater.updateCoordinatesOnCoordChange)
+
+    deltaCoordRadius = bpy.props.FloatProperty(name = 'Delta Radius' , min = 0, max = 100000, default = 0, precision = 1,
+                                description = 'Delta Angular coordinate radius', update = Updater.updateCoordinatesOnCoordChange)
+
     startx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Start X')
 
