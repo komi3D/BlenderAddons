@@ -135,13 +135,13 @@ class Updater():
     @staticmethod
     def updateCoordinatesOnCoordChange(self, context):
         roundedProfileObject = bpy.context.active_object
-        corners = roundedProfileObject.RoundedProfileProps[0].corners
+#         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
         flag = roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag
         Updater.recalculateCornerIds(self, context)
         if flag == False:
             converterToXY = StrategyFactory.getConverterOnCoordsValueChange(coordSystem)
-            converterToXY(corners)
+            converterToXY(self)
         Updater.updateConnectionsRadiusForAutoadjust(self, context)
 
     @staticmethod
@@ -265,10 +265,10 @@ class StrategyFactory():
             return convertXYFake
         elif coords == 'Angular':
             return convertFromXYToGlobalAngular
-        elif coords == 'DeltaXY':
-            return convertFromXYToDxDy
-        elif coords == 'DeltaAngular':
-            return convertFromXYToRefAngular
+#         elif coords == 'DeltaXY':
+#             return convertFromXYToDxDy
+#         elif coords == 'DeltaAngular':
+#             return convertFromXYToRefAngular
 
     @staticmethod
     def getConverterOnCoordsValueChange(coords):
@@ -276,10 +276,10 @@ class StrategyFactory():
             return convertXYFake
         elif coords == 'Angular':
             return convertFromGlobalAngularToXY
-        elif coords == 'DeltaXY':
-            return convertFromDxDyToXY
-        elif coords == 'DeltaAngular':
-            return convertFromRefAngularToXY
+#         elif coords == 'DeltaXY':
+#             return convertFromDxDyToXY
+#         elif coords == 'DeltaAngular':
+#             return convertFromRefAngularToXY
 
     @staticmethod
     def getTypeAdjust(profileType):
@@ -387,45 +387,44 @@ def convertFromXYToGlobalAngular(corners):
         c.coordAngle = degrees(angle)
         c.coordRadius = radius
 
-def convertFromGlobalAngularToXY(corners):
-    for c in corners:
-        c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
+def convertFromGlobalAngularToXY(c):
+    c.x, c.y = CoordsConverter.ToXY(0, 0, radians(c.coordAngle), c.coordRadius)
 
-def convertFromXYToDxDy(corners):
-    lastIndex = len(corners) - 1
-    corners[0].dx = corners[0].x
-    corners[0].dy = corners[0].y
-    for i in range(0, lastIndex):
-        corners[i + 1].dx = corners[i + 1].x - corners[i].x
-        corners[i + 1].dy = corners[i + 1].y - corners[i].y
-
-def convertFromDxDyToXY(corners):
-    lastIndex = len(corners) - 1
-    corners[0].x = corners[0].dx
-    corners[0].y = corners[0].dy
-    for i in range(0, lastIndex):
-        corners[i + 1].x = corners[i].x + corners[i + 1].dx
-        corners[i + 1].y = corners[i].y + corners[i + 1].dy
-
-def convertFromXYToRefAngular(corners):
-    c0 = corners[0]
-    angle, c0.deltaCoordRadius = CoordsConverter.ToAngular(0, 0, c0.x, c0.y)
-    c0.deltaCoordAngle = degrees(angle)
-
-    lastIndex = len(corners) - 1
-    for i in range(0, lastIndex):
-        angle, radius = CoordsConverter.ToAngular(corners[i].x, corners[i].y, corners[i + 1].x, corners[i + 1].y)
-        corners[i + 1].deltaCoordAngle = degrees(angle)
-        corners[i + 1].deltaCoordRadius = radius
-
-def convertFromRefAngularToXY(corners):
-    c0 = corners[0]
-    c0.x, c0.y = CoordsConverter.ToXY(0, 0, radians(c0.deltaCoordAngle), c0.deltaCoordRadius)
-
-    lastIndex = len(corners) - 1
-    for i in range(0, lastIndex):
-        corners[i + 1].x, corners[i + 1].y = CoordsConverter.ToXY(corners[i].x, corners[i].y,
-                                                               radians(corners[i + 1].deltaCoordAngle), corners[i + 1].deltaCoordRadius)
+# def convertFromXYToDxDy(corners):
+#     lastIndex = len(corners) - 1
+#     corners[0].dx = corners[0].x
+#     corners[0].dy = corners[0].y
+#     for i in range(0, lastIndex):
+#         corners[i + 1].dx = corners[i + 1].x - corners[i].x
+#         corners[i + 1].dy = corners[i + 1].y - corners[i].y
+#
+# def convertFromDxDyToXY(corners):
+#     lastIndex = len(corners) - 1
+#     corners[0].x = corners[0].dx
+#     corners[0].y = corners[0].dy
+#     for i in range(0, lastIndex):
+#         corners[i + 1].x = corners[i].x + corners[i + 1].dx
+#         corners[i + 1].y = corners[i].y + corners[i + 1].dy
+#
+# def convertFromXYToRefAngular(corners):
+#     c0 = corners[0]
+#     angle, c0.deltaCoordRadius = CoordsConverter.ToAngular(0, 0, c0.x, c0.y)
+#     c0.deltaCoordAngle = degrees(angle)
+#
+#     lastIndex = len(corners) - 1
+#     for i in range(0, lastIndex):
+#         angle, radius = CoordsConverter.ToAngular(corners[i].x, corners[i].y, corners[i + 1].x, corners[i + 1].y)
+#         corners[i + 1].deltaCoordAngle = degrees(angle)
+#         corners[i + 1].deltaCoordRadius = radius
+#
+# def convertFromRefAngularToXY(corners):
+#     c0 = corners[0]
+#     c0.x, c0.y = CoordsConverter.ToXY(0, 0, radians(c0.deltaCoordAngle), c0.deltaCoordRadius)
+#
+#     lastIndex = len(corners) - 1
+#     for i in range(0, lastIndex):
+#         corners[i + 1].x, corners[i + 1].y = CoordsConverter.ToXY(corners[i].x, corners[i].y,
+#                                                                radians(corners[i + 1].deltaCoordAngle), corners[i + 1].deltaCoordRadius)
 
 # 'XY', 'Angular', 'DeltaXY','DeltaAngular'
 def drawModeCorners(corners, connections, mesh, bm):

@@ -162,12 +162,12 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
         elif coordSystem == 'Angular':
             row.prop(corners, 'coordAngle')
             row.prop(corners, 'coordRadius')
-        elif coordSystem == 'DeltaXY':
-            row.prop(corners, 'dx')
-            row.prop(corners, 'dy')
-        elif coordSystem == 'DeltaAngular':
-            row.prop(corners, 'deltaCoordAngle')
-            row.prop(corners, 'deltaCoordRadius')
+#         elif coordSystem == 'DeltaXY':
+#             row.prop(corners, 'dx')
+#             row.prop(corners, 'dy')
+#         elif coordSystem == 'DeltaAngular':
+#             row.prop(corners, 'deltaCoordAngle')
+#             row.prop(corners, 'deltaCoordRadius')
 
     def addConnectionToMenu(self, id, box, connections, numOfCorners):
         if id < numOfCorners:

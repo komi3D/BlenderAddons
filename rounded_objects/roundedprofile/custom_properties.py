@@ -21,23 +21,22 @@ class CornerProperties(bpy.types.PropertyGroup):
     y = bpy.props.FloatProperty(name = 'Y' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Center Y', update = Updater.updateConnectionsRadiusForAutoadjust)
 
-    dx = bpy.props.FloatProperty(name = 'dX' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Delta X', update = Updater.updateCoordinatesOnCoordChange)
-
-    dy = bpy.props.FloatProperty(name = 'dY' , min = -1000, max = 1000, default = 0, precision = 1,
-                                description = 'Delta Y', update = Updater.updateCoordinatesOnCoordChange)
+#     dx = bpy.props.FloatProperty(name = 'dX' , min = -1000, max = 1000, default = 0, precision = 1,
+#                                 description = 'Delta X', update = Updater.updateCoordinatesOnCoordChange)
+#
+#     dy = bpy.props.FloatProperty(name = 'dY' , min = -1000, max = 1000, default = 0, precision = 1,
+#                                 description = 'Delta Y', update = Updater.updateCoordinatesOnCoordChange)
+#     deltaCoordAngle = bpy.props.FloatProperty(name = 'Delta angle' , min = -360, max = 360, default = 0, precision = 1,
+#                                 description = 'Delta Angular coordinate angle', update = Updater.updateCoordinatesOnCoordChange)
+#
+#     deltaCoordRadius = bpy.props.FloatProperty(name = 'Delta Radius' , min = 0, max = 100000, default = 0, precision = 1,
+#                                 description = 'Delta Angular coordinate radius', update = Updater.updateCoordinatesOnCoordChange)
 
     coordAngle = bpy.props.FloatProperty(name = 'Angle' , min = -360, max = 360, default = 0, precision = 1,
                                 description = 'Angular coordinate angle', update = Updater.updateCoordinatesOnCoordChange)
 
     coordRadius = bpy.props.FloatProperty(name = 'Radius' , min = 0, max = 100000, default = 0, precision = 1,
                                 description = 'Angular coordinate radius', update = Updater.updateCoordinatesOnCoordChange)
-
-    deltaCoordAngle = bpy.props.FloatProperty(name = 'Delta angle' , min = -360, max = 360, default = 0, precision = 1,
-                                description = 'Delta Angular coordinate angle', update = Updater.updateCoordinatesOnCoordChange)
-
-    deltaCoordRadius = bpy.props.FloatProperty(name = 'Delta Radius' , min = 0, max = 100000, default = 0, precision = 1,
-                                description = 'Delta Angular coordinate radius', update = Updater.updateCoordinatesOnCoordChange)
 
     startx = bpy.props.FloatProperty(name = 'X' , min = -1000, max = 1000, default = 0, precision = 1,
                                 description = 'Start X')
@@ -99,8 +98,8 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
         name = "Draw", description = "Mode of drawing the profile", update = Updater.updateProfile)
 
     coordSystem = bpy.props.EnumProperty(
-        items = (('XY', "XY", ""), ('Angular', "Angular", ""),
-                  ('DeltaXY', "DeltaXY", ""), ('DeltaAngular', "DeltaAngular", ""),),
+        items = (('XY', "XY", ""), ('Angular', "Angular", ""),),
+#                   ('DeltaXY', "DeltaXY", ""), ('DeltaAngular', "DeltaAngular", ""),),
         name = "Coords", description = "Coordinate system used for entering corner coordinates", update = Updater.updateCoordinatesOnCoordSystemChange)
 
     coordSystemChangingFlag = bpy.props.BoolProperty(name = "coordSystemChangingFlag", default = False, description = "Helper flag when changing coords system")
