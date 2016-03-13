@@ -60,6 +60,9 @@ class CornerProperties(bpy.types.PropertyGroup):
     sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 8,
                                 description = 'Number of sides', update = Updater.updateProfile)
 
+    id = bpy.props.IntProperty(name = 'id' , min = 0, max = 10000, default = 0,
+                                description = 'Corner Id')
+
 
 
 class ConnectionProperties(bpy.types.PropertyGroup):

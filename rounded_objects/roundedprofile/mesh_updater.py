@@ -16,7 +16,10 @@ WRONG_FLOAT = 1e10
 two_pi = 2 * pi
 defaultZ = 0
 
+
 class Updater():
+
+    updatedCount = 0
 
     @staticmethod
     def addMesh(roundedProfileObject):
@@ -55,6 +58,7 @@ class Updater():
         roundedProfileObject.select = True
         bpy.context.scene.objects.active = roundedProfileObject
 
+
     @staticmethod
     def removeCornerFromRoundedProfile (self, context, id):
         props = Updater.getPropertiesFromContext(self, context)
@@ -74,7 +78,7 @@ class Updater():
         targetIndex = id + 1
         props.corners.move(lastIndex, targetIndex)
         assignCornerProperties(props.corners[targetIndex], props.corners[id])
-        Updater.updateCoordinatesOnCoordChange(self, context)
+        Updater.updateCoordinatesOnCoordChange(props.corners[targetIndex], context)
         props.previousNumOfCorners = length
 
         props.connections.add()
@@ -84,45 +88,13 @@ class Updater():
 
         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
 
+    @staticmethod
+    def recalculateCornerIds (self, context):
+        props = Updater.getPropertiesFromContext(self, context)
+        corners = props.corners
+        for id in range (0, len(corners)):
+            corners[id].id = id
 
-#     @staticmethod
-#     def adjustCornersAndConnectionsInPolygonMode(rpp, actualNum, delta):
-#         if delta > 0:
-#             for cont in range(0, delta):
-#                 rpp.corners.add()
-#                 rpp.connections.add()
-#
-#         elif delta < 0:
-#             for cont in range(0, (delta) * (-1)):
-#                 rpp.corners.remove(actualNum - 1)
-#                 rpp.connections.remove(actualNum - 1)
-
-#    @staticmethod
-#     def adjustCornersAndConnectionsInChainMode(rpp, actualNum, delta):
-#         if delta > 0:
-#             for cont in range(0, delta):
-#                 rpp.corners.add()
-#                 rpp.connections.add()
-#
-#         elif delta < 0:
-#             for cont in range(0, (delta) * (-1)):
-#                 rpp.corners.remove(actualNum - 1)
-#                 rpp.connections.remove(actualNum - 1)
-#                 # TODO: connections number
-
-
-#    @staticmethod
-#     def adjustNumberOfCornersAndConnections(self, context):
-#         props = context.object.RoundedProfileProps[0]
-#         uiNum = props.numOfCorners
-#         previousType = props.type
-#         props.type = 'Polygon'
-#         actualNum = len(props.corners)
-#         delta = uiNum - actualNum
-#         Updater.adjustCornersAndConnectionsInPolygonMode(props, actualNum, delta)
-#         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
-#         props.previousNumOfCorners = uiNum
-#         props.type = previousType
 
     @staticmethod
     def updateConnectionsRadiusForAutoadjust(self, context):
@@ -162,11 +134,11 @@ class Updater():
 
     @staticmethod
     def updateCoordinatesOnCoordChange(self, context):
-# TODO rework all updates !!!!!!!!!!!!
         roundedProfileObject = bpy.context.active_object
         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
         flag = roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag
+        Updater.recalculateCornerIds(self, context)
         if flag == False:
             converterToXY = StrategyFactory.getConverterOnCoordsValueChange(coordSystem)
             converterToXY(corners)
@@ -175,9 +147,9 @@ class Updater():
     @staticmethod
     def displayCoords(self, corners):
         print("-X-Y-ALPHA-RADIUS-")
-        for c in corners:
+        for corner in corners:
             print("------")
-            print(str(c.x) + " --- " + str(c.y) + " --- " + str(c.coordAngle) + " --- " + str(c.coordRadius))
+            print(str(corner.x) + " --- " + str(corner.y) + " --- " + str(corner.coordAngle) + " --- " + str(corner.coordRadius))
         print("========================")
 
     @staticmethod
@@ -224,6 +196,8 @@ class Updater():
         Updater.addMesh(o)
         o.select = True
         bpy.context.scene.objects.active = o
+        Updater.updatedCount = Updater.updatedCount + 1
+        # print("updatedCount = " + str(Updater.updatedCount))
 
     @staticmethod
     def refreshTotalSides(roundedProfileObject):
@@ -233,18 +207,18 @@ class Updater():
 
         sidesAccumulator = 0
         if drawMode == 'Both' or drawMode == 'Merged result':
-            for c in corners:
-                if c.radius > 0:
-                    sidesAccumulator = sidesAccumulator + c.sides
-            for c in connections:
-                sidesAccumulator = sidesAccumulator + c.sides
+            for corner in corners:
+                if corner.radius > 0:
+                    sidesAccumulator = sidesAccumulator + corner.sides
+            for corner in connections:
+                sidesAccumulator = sidesAccumulator + corner.sides
         elif drawMode == 'Corners':
-            for c in corners:
-                if c.radius > 0:
-                    sidesAccumulator = sidesAccumulator + c.sides
+            for corner in corners:
+                if corner.radius > 0:
+                    sidesAccumulator = sidesAccumulator + corner.sides
         elif drawMode == 'Connections':
-            for c in connections:
-                sidesAccumulator = sidesAccumulator + c.sides
+            for corner in connections:
+                sidesAccumulator = sidesAccumulator + corner.sides
         roundedProfileObject.RoundedProfileProps[0].totalSides = sidesAccumulator
 
     @staticmethod
