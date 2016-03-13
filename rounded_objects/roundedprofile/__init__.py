@@ -49,6 +49,7 @@ if TESTS == False:
         imp.reload(CornerProperties)
         imp.reload(RoundedProfileProperties)
         imp.reload(Updater)
+        imp.reload(RoundedProfileRemoveCorner)
 
     else:
         from roundedprofile.mesh_add_rounded_panel import RoundedProfilePanel
@@ -58,6 +59,7 @@ if TESTS == False:
         from roundedprofile.custom_properties import RoundedProfileProperties
         from roundedprofile.mesh_add_rounded_profile import AddRoundedProfile
         from roundedprofile.mesh_updater import Updater
+        from roundedprofile.rounded_profile_ops import RoundedProfileRemoveCorner
 
     local_var = True
 
@@ -65,24 +67,28 @@ if TESTS == False:
         self.layout.operator(AddRoundedProfile.bl_idname, text = bl_info['name'], icon = "PLUGIN")
 
     def register():
+        bpy.utils.register_class(RoundedProfileRemoveCorner)
         bpy.utils.register_class(RoundedProfilePanel)
         bpy.utils.register_class(RoundedProfileDetailsPanel)
         bpy.utils.register_class(AddRoundedProfile)
         bpy.utils.register_class(CornerProperties)
         bpy.utils.register_class(ConnectionProperties)
         bpy.utils.register_class(RoundedProfileProperties)
+
         bpy.types.Object.RoundedProfileProps = bpy.props.CollectionProperty(type = RoundedProfileProperties)
 
         bpy.types.INFO_MT_mesh_add.append(menu_func)
         pass
 
     def unregister():
+        bpy.utils.unregister_class(RoundedProfileRemoveCorner)
         bpy.utils.unregister_class(RoundedProfilePanel)
         bpy.utils.unregister_class(RoundedProfileDetailsPanel)
         bpy.utils.unregister_class(AddRoundedProfile)
         bpy.utils.unregister_class(CornerProperties)
         bpy.utils.unregister_class(ConnectionProperties)
         bpy.utils.unregister_class(RoundedProfileProperties)
+
         bpy.types.INFO_MT_mesh_add.remove(menu_func)
         pass
 

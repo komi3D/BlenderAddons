@@ -132,16 +132,16 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
         coordSystem = properties.coordSystem
         for id in range(0, len(properties.corners)):
             box = layout.box()
-            self.addCornerToMenu(id + 1, box, properties.corners[id], properties.masterCornerEnabled, coordSystem)
+            self.addCornerToMenu(id, box, properties.corners[id], properties.masterCornerEnabled, coordSystem)
             if not properties.masterConnectionEnabled:
                 if (properties.type == 'Polygon') or (properties.type == 'Chain') or (properties.type == 'Curve' and id < numOfCorners - 1):
                     box = layout.box()
-                    self.addConnectionToMenu(id + 1, box, properties.connections[id], numOfCorners)
+                    self.addConnectionToMenu(id, box, properties.connections[id], numOfCorners)
 
     def addCornerToMenu(self, id, box, corners, master, coordSystem):
         row = box.row()
 
-        row.label("Corner " + str(id))
+        row.label("Corner " + str(id + 1))
         if not master:
             row.prop(corners, 'flipAngle')
         row = box.row()
@@ -152,6 +152,10 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
             row = box.row()
             row.prop(corners, 'radius')
             row.prop(corners, 'sides')
+
+        row = box.row()
+        op = row.operator("mesh.rounded_profile_remove_corner")
+        op.cornerId = id  # TODO: adjust ID - 1 !!!
 
     def addCoordsForCorner(self, corners, coordSystem, row):
         if coordSystem == 'XY':
@@ -169,9 +173,9 @@ class RoundedProfileDetailsPanel(bpy.types.Panel):
 
     def addConnectionToMenu(self, id, box, connections, numOfCorners):
         if id < numOfCorners:
-            box.label("Connection " + str(id) + "-" + str(id + 1))
+            box.label("Connection " + str(id + 1) + "-" + str(id + 2))
         elif id == numOfCorners:
-            box.label("Connection " + str(id) + "-" + str(1))
+            box.label("Connection " + str(id + 1) + "-" + str(1))
         else:
             box.label("Chain Connection " + str(id))
         row = box.row()

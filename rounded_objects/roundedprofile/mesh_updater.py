@@ -56,6 +56,13 @@ class Updater():
         bpy.context.scene.objects.active = roundedProfileObject
 
     @staticmethod
+    def removeCornerFromRoundedProfile (self, context, id):
+        props = Updater.getPropertiesFromContext(self, context)
+        props.corners.remove(id)
+        props.connections.remove(id)
+        Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
+
+    @staticmethod
     def adjustCornersAndConnectionsInPolygonMode(rpp, actualNum, delta):
         if delta > 0:
             for cont in range(0, delta):
