@@ -18,8 +18,23 @@ defaultZ = 0
 
 
 class Updater():
+    updateCountsEnabled = True
+    updatedProfileCount = 0
+    updatedConnectionsRadiusForAutoadjustCount = 0
+    updatedCoordinatesOnCoordChangeCount = 0
+    updatedTypeCount = 0
+    updatedCoordinatesOnCoordSystemChangeCount = 0
+    updatedCornerAndConnectionPropertiesFromMasterCount = 0
 
-    updatedCount = 0
+
+    @staticmethod
+    def resetCounts(self):
+        Updater.updatedProfileCount = 0
+        Updater.updatedConnectionsRadiusForAutoadjustCount = 0
+        Updater.updatedCoordinatesOnCoordChangeCount = 0
+        Updater.updatedTypeCount = 0
+        Updater.updatedCoordinatesOnCoordSystemChangeCount = 0
+        Updater.updatedCornerAndConnectionPropertiesFromMasterCount = 0
 
     @staticmethod
     def addMesh(roundedProfileObject):
@@ -52,6 +67,7 @@ class Updater():
         roundedProfileObject.RoundedProfileProps[0].corners.add()
         roundedProfileObject.RoundedProfileProps[0].connections.add()
         roundedProfileObject.RoundedProfileProps[0].connections.add()
+        roundedProfileObject.RoundedProfileProps[0].updateEnabledFlag = True
 
         Updater.addMesh(roundedProfileObject)
         # we select, and activate, main object for the room.
@@ -72,6 +88,7 @@ class Updater():
     def addCornerToRoundedProfile (self, context, id):
         props = Updater.getPropertiesFromContext(self, context)
 
+        props.updateEnabledFlag = False
         props.corners.add()
         length = len(props.corners)
         lastIndex = length - 1
@@ -85,7 +102,7 @@ class Updater():
         length = len(props.connections)
         lastIndex = length - 1
         props.connections.move(lastIndex, targetIndex)
-
+        props.updateEnabledFlag = True
         Updater.updateCornerAndConnectionPropertiesFromMaster(self, context)
 
     @staticmethod
@@ -98,6 +115,10 @@ class Updater():
 
     @staticmethod
     def updateConnectionsRadiusForAutoadjust(self, context):
+        if Updater.updateCountsEnabled:
+            Updater.updatedConnectionsRadiusForAutoadjustCount += 1
+            print ("updatedConnectionsRadiusForAutoadjustCount: " + str(Updater.updatedConnectionsRadiusForAutoadjustCount))
+
         roundedProfileObject = bpy.context.active_object
         props = roundedProfileObject.RoundedProfileProps[0]
         autoadjust = props.connectionAutoAdjustEnabled
@@ -105,9 +126,11 @@ class Updater():
             corners = props.corners
             connections = props.connections
             lastIndex = len(corners) - 1
+            props.updateEnabledFlag = False
             for i in range(lastIndex):
                 Updater.updateConnectionRadius(corners[i], corners[i + 1], connections[i])
             Updater.updateConnectionRadius(corners[lastIndex], corners[0], connections[lastIndex])
+            props.updateEnabledFlag = True
         Updater.updateProfile(self, context)
 
     @staticmethod
@@ -124,16 +147,27 @@ class Updater():
     # TODO - think it through how and when to update alpha and radius and when to update X and Y??? what about reference angular and reference XY
     @staticmethod
     def updateCoordinatesOnCoordSystemChange(self, context):
+        if Updater.updateCountsEnabled:
+            Updater.updatedCoordinatesOnCoordSystemChangeCount += 1
+            print ("updatedCoordinatesOnCoordSystemChangeCount: " + str(Updater.updatedCoordinatesOnCoordSystemChangeCount))
         roundedProfileObject = bpy.context.active_object
-        corners = roundedProfileObject.RoundedProfileProps[0].corners
-        coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
-        roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag = True
+        props = Updater.getPropertiesFromContext(self, context)
+        corners = props.corners
+        coordSystem = props.coordSystem
+        props.coordSystemChangingFlag = True
+        props.updateEnabledFlag = False
         converterToNewCoords = StrategyFactory.getConverterOnCoordsSystemChange(coordSystem)
         converterToNewCoords(corners)
-        roundedProfileObject.RoundedProfileProps[0].coordSystemChangingFlag = False
+        props.updateEnabledFlag = True
+        props.coordSystemChangingFlag = False
+
 
     @staticmethod
     def updateCoordinatesOnCoordChange(self, context):
+        if Updater.updateCountsEnabled:
+            Updater.updatedCoordinatesOnCoordChangeCount += 1
+            print ('Updater.updatedCoordinatesOnCoordChangeCount: ' + str(Updater.updatedCoordinatesOnCoordChangeCount))
+
         roundedProfileObject = bpy.context.active_object
 #         corners = roundedProfileObject.RoundedProfileProps[0].corners
         coordSystem = roundedProfileObject.RoundedProfileProps[0].coordSystem
@@ -154,8 +188,12 @@ class Updater():
 
     @staticmethod
     def updateCornerAndConnectionPropertiesFromMaster(self, context):
+        if Updater.updateCountsEnabled:
+            Updater.updatedCornerAndConnectionPropertiesFromMasterCount += 1
+            print("Updater.updatedCornerAndConnectionPropertiesFromMasterCount: " + str(Updater.updatedCornerAndConnectionPropertiesFromMasterCount))
         roundedProfileObject = bpy.context.active_object
         props = roundedProfileObject.RoundedProfileProps[0]
+        props.updateEnabledFlag = False
         if props.masterCornerEnabled:
             for c in props.corners:
                 c.radius = props.masterCornerRadius
@@ -169,21 +207,34 @@ class Updater():
                 c.flipAngle = props.masterConnectionflipAngle
                 c.radius = props.masterConnectionRadius
                 c.sides = props.masterConnectionSides
+        props.updateEnabledFlag = True
         Updater.updateProfile(self, context)
 
     @staticmethod
     def updateType(self, context):
+        if Updater.updateCountsEnabled:
+            Updater.updatedTypeCount += 1
+            print ('Updater.updatedTypeCount: ' + str(Updater.updatedTypeCount))
         props = Updater.getPropertiesFromContext(self, context)
+        props.updateEnabledFlag = False
         profileType = props.type
         previousCoordSystem = props.coordSystem
         props.coordSystem = 'XY'  # this is to allow changing profileType in XY coords space
         adjust = StrategyFactory.getTypeAdjust(profileType)
         adjust(props)
         props.coordSystem = previousCoordSystem  # switch back to original coords system
+        props.updateEnabledFlag = True
         Updater.updateProfile(self, context)
 
     @staticmethod
     def updateProfile(self, context):
+        props = Updater.getPropertiesFromContext(self, context)
+        if (props.updateEnabledFlag == False):
+            return
+        if Updater.updateCountsEnabled:
+            Updater.updatedProfileCount = Updater.updatedProfileCount + 1
+            print("updatedProfileCount: " + str(Updater.updatedProfileCount))
+
         o = bpy.context.active_object
         o.select = False
         o.data.user_clear()
@@ -196,8 +247,8 @@ class Updater():
         Updater.addMesh(o)
         o.select = True
         bpy.context.scene.objects.active = o
-        Updater.updatedCount = Updater.updatedCount + 1
-        # print("updatedCount = " + str(Updater.updatedCount))
+
+
 
     @staticmethod
     def refreshTotalSides(roundedProfileObject):
@@ -318,7 +369,7 @@ def adjustToCurve(properties):
     connections = properties.connections
     previousNumOfCorners = properties.previousNumOfCorners
 
-    # if switching from chain remove additional
+    # if switching from chain remove itional
     while corners_count > previousNumOfCorners:
         corners.remove(corners_count - 1)
         corners_count = len(corners)
@@ -347,6 +398,7 @@ def adjustToChain(properties):
     #        1                   5
     #          \  2' -  3'-  4'/
 
+
     for k in reversed(range(0, baseConnectionsCount)):
         connections.add()
         lastConnectionIndex = len(connections) - 1
@@ -371,6 +423,7 @@ def assignCornerProperties(target, source):
     target.sides = source.sides
 
 def assignConnectionProperties(target, source):
+
     target.type = source.type
     target.inout = source.inout
     target.flipCenter = source.flipCenter

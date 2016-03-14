@@ -51,6 +51,7 @@ if TESTS == False:
         imp.reload(Updater)
         imp.reload(RoundedProfileRemoveCorner)
         imp.reload(RoundedProfileAddCorner)
+        imp.reload(RoundedProfileResetCounters)
 
     else:
         from roundedprofile.mesh_add_rounded_panel import RoundedProfilePanel
@@ -62,6 +63,7 @@ if TESTS == False:
         from roundedprofile.mesh_updater import Updater
         from roundedprofile.rounded_profile_ops import RoundedProfileRemoveCorner
         from roundedprofile.rounded_profile_ops import RoundedProfileAddCorner
+        from roundedprofile.rounded_profile_ops import RoundedProfileResetCounters
 
     local_var = True
 
@@ -71,6 +73,7 @@ if TESTS == False:
     def register():
         bpy.utils.register_class(RoundedProfileRemoveCorner)
         bpy.utils.register_class(RoundedProfileAddCorner)
+        bpy.utils.register_class(RoundedProfileResetCounters)
         bpy.utils.register_class(RoundedProfilePanel)
         bpy.utils.register_class(RoundedProfileDetailsPanel)
         bpy.utils.register_class(AddRoundedProfile)
@@ -84,6 +87,7 @@ if TESTS == False:
     def unregister():
         bpy.utils.unregister_class(RoundedProfileRemoveCorner)
         bpy.utils.unregister_class(RoundedProfileAddCorner)
+        bpy.utils.unregister_class(RoundedProfileResetCounters)
         bpy.utils.unregister_class(RoundedProfilePanel)
         bpy.utils.unregister_class(RoundedProfileDetailsPanel)
         bpy.utils.unregister_class(AddRoundedProfile)

@@ -104,14 +104,10 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
 
     coordSystemChangingFlag = bpy.props.BoolProperty(name = "coordSystemChangingFlag", default = False, description = "Helper flag when changing coords system")
 
-    updateDisabledFlag = bpy.props.BoolProperty(name = "updateDisabledFlag", default = False, description = "Helper flag to disable updating of programatically changed properties")
+    updateEnabledFlag = bpy.props.BoolProperty(name = "updateEnabledFlag", default = True, description = "Helper flag to enable updating of programatically changed properties")
 
     totalSides = bpy.props.IntProperty(name = 'Total sides' , min = 2, max = 1000, default = 2,
                                 description = 'Number of sides in the whole profile',)
-
-
-#     numOfCorners = bpy.props.IntProperty(name = 'Number of corners' , min = 1, max = 100, default = 2,
-#                                 description = 'Number of corners', update = Updater.adjustNumberOfCornersAndConnections)
 
     previousNumOfCorners = bpy.props.IntProperty(name = 'Previous number of corners' , min = 1, max = 100, default = 2,
                                 description = 'Previous number of corners')
@@ -150,11 +146,3 @@ class RoundedProfileProperties(bpy.types.PropertyGroup):
     corners = bpy.props.CollectionProperty(type = CornerProperties)
 
     connections = bpy.props.CollectionProperty(type = ConnectionProperties)
-
-
-    planeEnum = bpy.props.EnumProperty(
-        items = ((XY, XY, "XY Plane (Z=0)"), (YZ, YZ, "YZ Plane (X=0)"), (XZ, XZ, "XZ Plane (Y=0)")),
-        name = '',
-        default = 'XY',
-        description = "Plane used by addon to calculate plane of drawn arcs")
-

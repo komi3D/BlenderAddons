@@ -53,3 +53,15 @@ class RoundedProfileAddCorner(bpy.types.Operator):
             self.report({'WARNING'}, "RoundedProfile:add corner works only in Object mode")
             return {'CANCELLED'}
 
+class RoundedProfileResetCounters(bpy.types.Operator):
+    bl_idname = "mesh.rounded_profile_reset_counters"
+    bl_label = "Reset Counters"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        if bpy.context.mode == "OBJECT":
+            Updater.resetCounts(self)
+            return {'FINISHED'}
+        else:
+            self.report({'WARNING'}, "RoundedProfile:reset counter works only in Object mode")
+            return {'CANCELLED'}
