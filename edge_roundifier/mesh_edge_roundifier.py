@@ -78,9 +78,9 @@ d_Rotate_Around_Spin_Center = False
 ###################################################################################
 
 
-class EdgeRoundifierPanel(bpy.types.Panel):
-    bl_label = "Edge Roundifier"
-    bl_idname = "EdgeRoundifierPanel"
+class EdgeWorksPanel(bpy.types.Panel):
+    bl_label = "Edge Works"
+    bl_idname = "EdgeWorksPanel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     bl_category = "Addons"
@@ -777,12 +777,13 @@ class EdgeRoundifier(bpy.types.Operator):
             
     def connectArcsTogether(self, arcs, bm, mesh, parameters):
         for i in range(0, len(arcs)-1):
+            if arcs[i] == None or arcs[i + 1] == None: # in case on XZ or YZ there are no arcs drawn
+                return
             lastVert = len(arcs[i])-1
             if parameters["drawArcCenters"]:
                 lastVert = lastVert - 1 #center gets added as last vert of arc    
+
             #take last vert of arc i and first vert of arc i+1
-            if arcs[i] == None or arcs[i + 1] == None: # in case on XZ or YZ there are no arcs drawn
-                return
             V1 = arcs[i][lastVert].co
             V2 = arcs[i+1][0].co
             
@@ -1220,13 +1221,13 @@ def draw_item(self, context):
 
 def register():
     bpy.utils.register_class(EdgeRoundifier)
-    bpy.utils.register_class(EdgeRoundifierPanel)
+    bpy.utils.register_class(EdgeWorksPanel)
     bpy.types.VIEW3D_MT_edit_mesh_edges.append(draw_item)
 
 
 def unregister():
     bpy.utils.unregister_class(EdgeRoundifier)
-    bpy.utils.unregister_class(EdgeRoundifierPanel)
+    bpy.utils.unregister_class(EdgeWorksPanel)
     bpy.types.VIEW3D_MT_edit_mesh_edges.remove(draw_item)
 
 if __name__ == "__main__":
