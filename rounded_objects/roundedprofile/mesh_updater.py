@@ -56,7 +56,6 @@ class Updater():
         for o in bpy.data.objects:
             o.select = False
 
-        # we create main object and mesh for walls
         roundedProfileMesh = bpy.data.meshes.new("RoundedProfile")
         roundedProfileObject = bpy.data.objects.new("RoundedProfile", roundedProfileMesh)
         roundedProfileObject.location = bpy.context.scene.cursor_location
@@ -70,7 +69,6 @@ class Updater():
         roundedProfileObject.RoundedProfileProps[0].updateEnabledFlag = True
 
         Updater.addMesh(roundedProfileObject)
-        # we select, and activate, main object for the room.
         roundedProfileObject.select = True
         bpy.context.scene.objects.active = roundedProfileObject
 

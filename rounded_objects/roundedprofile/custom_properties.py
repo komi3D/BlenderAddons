@@ -84,6 +84,23 @@ class ConnectionProperties(bpy.types.PropertyGroup):
     sides = bpy.props.IntProperty(name = 'Sides' , min = 1, max = 200, default = 4,
                                 description = 'Number of sides in connection', update = Updater.updateProfile)
 
+class TemplateProperties(bpy.types.PropertyGroup):
+    type = bpy.props.EnumProperty(
+        items = (('Dipol', "Dipol", ""), ('Triangle', "Triangle", ""),('Quad', "Quad", ""),('Poly', "Poly", "")),
+        name = "type", description = "Type of template", update = Updater.updateProfile)
+
+    dipolSubtype = bpy.props.EnumProperty(
+        items = (('Straight', "Straight", ""),('Outer', "Outer", ""), ('Inner', "Inner", ""), ('Outer-Inner', "Outer-Inner", ""), ('Inner-Outer', "Inner-Outer", "")),
+        name = "dipolSubtype", description = "Dipol template subtypes", update = Updater.updateProfile)
+
+    triangleSubtype = bpy.props.EnumProperty(
+        items = (('AllEqual', "AllEqual", ""), ('TwoEqual', "TwoEqual", ""), ('Free', "Free", "")),
+        name = "triangleSubtype", description = "Triangle template subtypes", update = Updater.updateProfile)
+
+    quadSubtype = bpy.props.EnumProperty(
+        items = (('Square', "Square", ""), ('Rectangle', "Rectangle", ""), ('Inner', "Inner", ""), ('Outer-Inner', "Outer-Inner", ""), ('Inner-Outer', "Inner-Outer", "")),
+        name = "quadSubtype", description = "Quad template subtypes", update = Updater.updateProfile)
+
 
 
 class RoundedProfileProperties(bpy.types.PropertyGroup):

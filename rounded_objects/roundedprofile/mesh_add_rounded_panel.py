@@ -69,6 +69,47 @@ class RoundedProfilePanel(bpy.types.Panel):
         row.label(totalSidesText)
 
 #############################################
+class RoundedProfileTemplatePanel(bpy.types.Panel):
+    bl_idname = "OBJECT_PT_RoundedProfileTemplate"
+    bl_label = "Profile Template"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    @classmethod
+    def poll(cls, context):
+        o = context.object
+        if o is None:
+            return False
+        if 'RoundedProfileProps' not in o:
+            return False
+        else:
+            return True
+
+    def draw(self, context):
+        o = context.object
+        try:
+            if 'RoundedProfileProps' not in o:
+                return
+        except:
+            return
+
+        layout = self.layout
+        if bpy.context.mode == 'EDIT_MESH':
+            layout.label('Warning: Operator does not work in edit mode.', icon = 'ERROR')
+        else:
+            self.drawTemplates(o, layout)
+
+    def drawTemplates(self, o, layout):
+        row = layout.row()
+        row.prop(properties, 'type')
+        row = layout.row()
+        row.prop(properties, 'drawMode')
+        row = layout.row()
+        row.prop(properties, 'coordSystem')
+        return row
+        pass
+
+#############################################
 class RoundedProfileDetailsPanel(bpy.types.Panel):
     bl_idname = "OBJECT_PT_RoundedProfileDetails"
     bl_label = "Profile Details"
