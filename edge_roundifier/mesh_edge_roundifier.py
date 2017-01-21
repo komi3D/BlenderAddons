@@ -782,8 +782,8 @@ class EdgeRoundifier(bpy.types.Operator):
             lastVert = len(arcs[i])-1
             if parameters["drawArcCenters"]:
                 lastVert = lastVert - 1 #center gets added as last vert of arc    
+
             #take last vert of arc i and first vert of arc i+1
-            
             V1 = arcs[i][lastVert].co
             V2 = arcs[i+1][0].co
             
