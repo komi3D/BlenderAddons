@@ -13,12 +13,15 @@ bl_info = {
 
 import bpy
 import bmesh
+from mathutils import Vector, Matrix
 
 class TestAddon(bpy.types.Operator):
     """TestAddon"""
     bl_idname = "mesh.test_addon"
     bl_label = "Test Addon Operator"
     bl_options = {'REGISTER', 'UNDO', 'PRESET'}
+
+    normalFaces = []
 
     @classmethod
     def poll(cls, context):
@@ -52,7 +55,7 @@ class TestAddon(bpy.types.Operator):
     
     def extrudeEdge(self, edgeList, mesh, bm):
         edge = edgeList[0]
-        normal = self.getEdgeNormalLinkFaces(edge, bm)   
+        normal = self.getEdgeNormalWithLinkFaces(edge, bm)   
 
         ret = bmesh.ops.extrude_edge_only(
             bm,
@@ -60,13 +63,16 @@ class TestAddon(bpy.types.Operator):
         geom = ret["geom"]
 
         verts_extruded = [ele for ele in geom if isinstance(ele, bmesh.types.BMVert)]
+        faceAfterExtrude = [e for e in geom if isinstance(e, bmesh.types.BMFace)]
  
-             
         bmesh.ops.translate(bm, verts=verts_extruded, vec=normal)
-
+        faceNormal = faceAfterExtrude[0].normal
+        self.createObjAndAlignToFace(faceAfterExtrude[0], bm)
+        print("normal of extruded face:")
+        print(faceNormal)
         self.refreshMesh(bm,mesh)
     
-    def getEdgeNormalLinkFaces(self, edge, bm):
+    def getEdgeNormalWithLinkFaces(self, edge, bm):
         normal = (0,0,0)
         facesWithEdge = edge.link_faces
         lenFacesWithEdge = len(facesWithEdge)
@@ -77,6 +83,13 @@ class TestAddon(bpy.types.Operator):
         else:
             print("getEdgeNormal - error getting normal, lenFacesWithEdge = " +  str(lenFacesWithEdge))
         return normal
+
+    def createObjAndAlignToFace(self, face, bm):
+        destVector = face.normal
+        srcVector = Vector((0, 0, 1))
+        idMatrix = Matrix.Identity(3)
+        rotMatrix = idMatrix * srcVector.rotation_difference(destVector).to_matrix()
+        bmesh.ops.create_circle(bm, segments=6, diameter=1, matrix=rotMatrix)
     
     def displayFaces(self, faces):
         print ('=== FACES ===')
