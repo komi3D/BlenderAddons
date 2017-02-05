@@ -13,6 +13,7 @@ bl_info = {
 
 import bpy
 import bmesh
+import math
 from mathutils import Vector, Matrix
 
 class TestAddon(bpy.types.Operator):
@@ -28,7 +29,8 @@ class TestAddon(bpy.types.Operator):
         return context.active_object is not None
 
     def execute(self, context):
-        self.extrudeEdges(context)
+        #self.extrudeEdges(context)
+        self.processEdges(context)
         return {'FINISHED'}
 
     
@@ -48,6 +50,13 @@ class TestAddon(bpy.types.Operator):
         bm.to_mesh(mesh)
         bpy.ops.object.mode_set(mode = 'EDIT')
 
+    def processEdges(self, context):
+        edges, mesh, bm = self.prepareMesh(context)
+        for e in edges:
+            matrix, perpendicularVector = self.creteTransformOrientation(e, mesh, bm)
+            self.spinOnEdge(e, mesh, bm, matrix, perpendicularVector)
+
+#########################################################
     def extrudeEdges(self, context):
         edges, mesh, bm = self.prepareMesh(context)
         for e in edges:
@@ -90,6 +99,95 @@ class TestAddon(bpy.types.Operator):
         idMatrix = Matrix.Identity(3)
         rotMatrix = idMatrix * srcVector.rotation_difference(destVector).to_matrix()
         bmesh.ops.create_circle(bm, segments=6, diameter=1, matrix=rotMatrix)
+        self.newTransformOrientation(rotMatrix)
+##########################################################
+
+    def creteTransformOrientation(self, e, mesh, bm):
+        matrix, perpendicularVector = self.makeMatrixFromEdge(e, bm)
+        self.newTransformOrientation(matrix,'balbina')
+        return matrix, perpendicularVector
+
+
+    def newTransformOrientation(self, mat, orientationName):
+        context = bpy.context
+        scene = context.scene
+
+        # create view
+        bpy.ops.transform.create_orientation(name=orientationName, overwrite=True)
+        orientation = scene.orientations.get(orientationName)
+        print(orientation)
+
+        mat3 = mat.to_3x3()
+        print(mat3)
+
+        loc, rot, sca = mat.decompose()
+        print('LOC:')
+        print(loc)
+        print('ROT')
+        print (rot.to_matrix())
+        print('SCA')
+        print(sca)
+        orientation.matrix = mat3
+
+        # find 3d views to set to "new"
+        screen = context.screen
+        views = [area.spaces.active for area in screen.areas if area.type == 'VIEW_3D']
+        for view in views:
+            view.transform_orientation = orientation.name
+        
+    def makeMatrixFromEdge(self, edge, bm):
+        edgeNormal = self.getEdgeNormalWithLinkFaces(edge,bm)
+        v1 = edge.verts[0].co
+        v2 = edge.verts[1].co
+        v3 = v1 + edgeNormal
+        self.displayVerts([v1,v2,v3])
+        mat, perpendicularVector = self.makeMatrixFromVerts(v1,v2,v3)
+        print('MATRIX:')
+        print(mat)
+        print('PERPENDICULA VEC')
+        print(perpendicularVector)
+        return mat, perpendicularVector
+        
+    def makeMatrixFromVerts(self, v1, v2, v3):
+        a = v2-v1
+        b = v3-v1
+        c = a.cross(b)
+        if c.magnitude>0:
+            c = c.normalized()
+        else:
+            raise BaseException("A B C are colinear")
+
+        b2 = c.cross(a).normalized()
+        a2 = a.normalized()
+        print('matrix Z=')
+        print(c)
+        m = Matrix([a2, b2, c]).transposed()
+        #s = a.magnitude
+        s = 1
+        m = Matrix.Translation(v1) * Matrix.Scale(s,4) * m.to_4x4()
+        # m = m.to_3x3()
+        perpendicularVector = c
+        return m, perpendicularVector
+
+    def spinOnEdge(self, edge, mesh, bm, matrix, perpendicularVector):
+        center = (edge.verts[0].co + edge.verts[1].co )/2
+
+        v0org = edge.verts[1]
+        v0 = bm.verts.new(v0org.co)
+        angle = math.pi
+        steps = 8
+        print('center=' + str(center))
+        
+        result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = perpendicularVector, \
+                                   angle = angle, steps = steps, use_duplicate = False)
+        self.refreshMesh(bm, mesh)
+
+
+    def displayVerts(self, verts):
+        print('verts:')
+        for v in verts:
+            print (str(v))
+        print('---')
     
     def displayFaces(self, faces):
         print ('=== FACES ===')
