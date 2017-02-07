@@ -34,7 +34,7 @@ import bmesh
 import bpy
 import bpy.props
 import imp
-from math import sqrt, acos, asin, pi, radians, degrees, sin, acos
+from math import sqrt, acos, asin, pi, radians, degrees, sin, acos, cos
 from mathutils import Vector, Euler, Matrix, Quaternion
 import types
 
@@ -602,7 +602,7 @@ class EdgeRoundifier(bpy.types.Operator):
     def roundifyEdges(self, edges, parameters, bm, mesh):
         arcs = []
         for e in edges:
-            arcVerts = self.roundify(e, parameters, bm, mesh)
+            #arcVerts = self.roundify(e, parameters, bm, mesh)
             matrix = self.creteTransformOrientation(e, mesh, bm)
             arcVerts = self.spinOnEdge(e, mesh, bm, matrix)
             arcs.append(arcVerts)
@@ -610,7 +610,7 @@ class EdgeRoundifier(bpy.types.Operator):
         if parameters["connectArcs"]: 
             self.connectArcsTogether(arcs, bm, mesh, parameters)
 
-##########################################################
+####################### NEW CODE ###################################
 
     def creteTransformOrientation(self, e, mesh, bm):
         matrix = self.makeMatrixFromEdge(e, bm)
@@ -668,15 +668,22 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def spinOnEdge(self, edge, mesh, bm, matrix):
         center = (edge.verts[0].co + edge.verts[1].co )/2
-
+        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
         v0org = edge.verts[1]
+        if self.invertAngle:
+            v0org = edge.verts[0]
         v0 = bm.verts.new(v0org.co)
-        angle = pi
-        steps = 8
+        steps = self.n
+
+        self.CalculateRadiusAndAngle(edgeLength)
+        angle = self.a
+        #cos alfa/2 = distance / radius
+        distance = cos(radians(angle/2)) * self.r
+        center -= distance * matrix.transposed()[1]
         print('center=' + str(center))
         
         result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = matrix.transposed()[2], \
-                                   angle = angle, steps = steps, use_duplicate = False)
+                                   angle = radians(angle), steps = steps, use_duplicate = False)
         #self.refreshMesh(bm, mesh)
         return result
 
@@ -694,9 +701,12 @@ class EdgeRoundifier(bpy.types.Operator):
             v1 = edge.verts[1].co
             a = v1-v0
             normal = a.cross(n)
+            if self.flip:
+                normal = n.cross(a)
         else:
             print("getEdgeNormal - error getting normal, lenFacesWithEdge = " +  str(lenFacesWithEdge))
         return normal
+####################### NEW CODE END ###################################
 
     def getNormalizedEdgeVector (self, edge):
         V1 = edge.verts[0].co 
