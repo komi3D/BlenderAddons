@@ -53,8 +53,8 @@ class TestAddon(bpy.types.Operator):
     def processEdges(self, context):
         edges, mesh, bm = self.prepareMesh(context)
         for e in edges:
-            matrix, perpendicularVector = self.creteTransformOrientation(e, mesh, bm)
-            self.spinOnEdge(e, mesh, bm, matrix, perpendicularVector)
+            matrix = self.creteTransformOrientation(e, mesh, bm)
+            self.spinOnEdge(e, mesh, bm, matrix)
 
 #########################################################
     def extrudeEdges(self, context):
@@ -109,9 +109,9 @@ class TestAddon(bpy.types.Operator):
 ##########################################################
 
     def creteTransformOrientation(self, e, mesh, bm):
-        matrix, perpendicularVector = self.makeMatrixFromEdge(e, bm)
+        matrix = self.makeMatrixFromEdge(e, bm)
         self.newTransformOrientation(matrix,'balbina')
-        return matrix, perpendicularVector
+        return matrix
 
 
     def newTransformOrientation(self, mat, orientationName):
@@ -138,12 +138,10 @@ class TestAddon(bpy.types.Operator):
         v2 = edge.verts[1].co
         v3 = v1 + edgeNormal
         self.displayVerts([v1,v2,v3])
-        mat, perpendicularVector = self.makeMatrixFromVerts(v1,v2,v3)
+        mat = self.makeMatrixFromVerts(v1,v2,v3)
         print('MATRIX:')
         print(mat)
-        print('PERPENDICULA VEC')
-        print(perpendicularVector)
-        return mat, perpendicularVector
+        return mat
         
     def makeMatrixFromVerts(self, v1, v2, v3):
         a = v2-v1
@@ -163,10 +161,9 @@ class TestAddon(bpy.types.Operator):
         s = 1
         m = Matrix.Translation(v1) * Matrix.Scale(s,4) * m.to_4x4()
         m = m.to_3x3()
-        perpendicularVector = c
-        return m, perpendicularVector
+        return m
 
-    def spinOnEdge(self, edge, mesh, bm, matrix, perpendicularVector):
+    def spinOnEdge(self, edge, mesh, bm, matrix):
         center = (edge.verts[0].co + edge.verts[1].co )/2
 
         v0org = edge.verts[1]
