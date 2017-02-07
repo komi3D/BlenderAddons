@@ -603,10 +603,100 @@ class EdgeRoundifier(bpy.types.Operator):
         arcs = []
         for e in edges:
             arcVerts = self.roundify(e, parameters, bm, mesh)
+            matrix = self.creteTransformOrientation(e, mesh, bm)
+            arcVerts = self.spinOnEdge(e, mesh, bm, matrix)
             arcs.append(arcVerts)
 
         if parameters["connectArcs"]: 
             self.connectArcsTogether(arcs, bm, mesh, parameters)
+
+##########################################################
+
+    def creteTransformOrientation(self, e, mesh, bm):
+        matrix = self.makeMatrixFromEdge(e, bm)
+        self.newTransformOrientation(matrix,'balbina')
+        return matrix
+
+
+    def newTransformOrientation(self, mat, orientationName):
+        context = bpy.context
+        scene = context.scene
+
+        # create view
+        bpy.ops.transform.create_orientation(name=orientationName, overwrite=True)
+        orientation = scene.orientations.get(orientationName)
+
+        mat3 = mat.to_3x3()
+
+        orientation.matrix = mat3
+
+        # find 3d views to set to "new"
+        screen = context.screen
+        views = [area.spaces.active for area in screen.areas if area.type == 'VIEW_3D']
+        for view in views:
+            view.transform_orientation = orientation.name
+        
+    def makeMatrixFromEdge(self, edge, bm):
+        edgeNormal = self.getEdgeNormalWithLinkFaces(edge,bm)
+        v1 = edge.verts[0].co
+        v2 = edge.verts[1].co
+        v3 = v1 + edgeNormal
+        mat = self.makeMatrixFromVerts(v1,v2,v3)
+        print('MATRIX:')
+        print(mat)
+        return mat
+        
+    def makeMatrixFromVerts(self, v1, v2, v3):
+        a = v2-v1
+        b = v3-v1
+        c = a.cross(b)
+        if c.magnitude>0:
+            c = c.normalized()
+        else:
+            raise BaseException("A B C are colinear")
+
+        b2 = c.cross(a).normalized()
+        a2 = a.normalized()
+        print('matrix Z=')
+        print(c)
+        m = Matrix([a2, b2, c]).transposed()
+        #s = a.magnitude
+        s = 1
+        m = Matrix.Translation(v1) * Matrix.Scale(s,4) * m.to_4x4()
+        m = m.to_3x3()
+        return m
+
+    def spinOnEdge(self, edge, mesh, bm, matrix):
+        center = (edge.verts[0].co + edge.verts[1].co )/2
+
+        v0org = edge.verts[1]
+        v0 = bm.verts.new(v0org.co)
+        angle = pi
+        steps = 8
+        print('center=' + str(center))
+        
+        result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = matrix.transposed()[2], \
+                                   angle = angle, steps = steps, use_duplicate = False)
+        #self.refreshMesh(bm, mesh)
+        return result
+
+    def getEdgeNormalWithLinkFaces(self, edge, bm):
+        normal = Vector((0,0,0))
+        facesWithEdge = edge.link_faces
+        lenFacesWithEdge = len(facesWithEdge)
+        if lenFacesWithEdge == 2:
+            n1 = facesWithEdge[0].normal
+            n2 = facesWithEdge[1].normal
+            normal = n1 + n2
+        elif lenFacesWithEdge == 1:
+            n = facesWithEdge[0].normal
+            v0 = edge.verts[0].co
+            v1 = edge.verts[1].co
+            a = v1-v0
+            normal = a.cross(n)
+        else:
+            print("getEdgeNormal - error getting normal, lenFacesWithEdge = " +  str(lenFacesWithEdge))
+        return normal
 
     def getNormalizedEdgeVector (self, edge):
         V1 = edge.verts[0].co 
