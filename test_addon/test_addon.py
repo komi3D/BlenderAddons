@@ -82,13 +82,19 @@ class TestAddon(bpy.types.Operator):
         self.refreshMesh(bm,mesh)
     
     def getEdgeNormalWithLinkFaces(self, edge, bm):
-        normal = (0,0,0)
+        normal = Vector((0,0,0))
         facesWithEdge = edge.link_faces
         lenFacesWithEdge = len(facesWithEdge)
         if lenFacesWithEdge == 2:
             n1 = facesWithEdge[0].normal
             n2 = facesWithEdge[1].normal
             normal = n1 + n2
+        elif lenFacesWithEdge == 1:
+            n = facesWithEdge[0].normal
+            v0 = edge.verts[0].co
+            v1 = edge.verts[1].co
+            a = v1-v0
+            normal = a.cross(n)
         else:
             print("getEdgeNormal - error getting normal, lenFacesWithEdge = " +  str(lenFacesWithEdge))
         return normal
@@ -115,18 +121,9 @@ class TestAddon(bpy.types.Operator):
         # create view
         bpy.ops.transform.create_orientation(name=orientationName, overwrite=True)
         orientation = scene.orientations.get(orientationName)
-        print(orientation)
 
         mat3 = mat.to_3x3()
-        print(mat3)
 
-        loc, rot, sca = mat.decompose()
-        print('LOC:')
-        print(loc)
-        print('ROT')
-        print (rot.to_matrix())
-        print('SCA')
-        print(sca)
         orientation.matrix = mat3
 
         # find 3d views to set to "new"
@@ -165,7 +162,7 @@ class TestAddon(bpy.types.Operator):
         #s = a.magnitude
         s = 1
         m = Matrix.Translation(v1) * Matrix.Scale(s,4) * m.to_4x4()
-        # m = m.to_3x3()
+        m = m.to_3x3()
         perpendicularVector = c
         return m, perpendicularVector
 
@@ -178,7 +175,7 @@ class TestAddon(bpy.types.Operator):
         steps = 8
         print('center=' + str(center))
         
-        result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = perpendicularVector, \
+        result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = matrix.transposed()[2], \
                                    angle = angle, steps = steps, use_duplicate = False)
         self.refreshMesh(bm, mesh)
 
