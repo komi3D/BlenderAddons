@@ -614,7 +614,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def creteTransformOrientation(self, e, mesh, bm):
         matrix = self.makeMatrixFromEdge(e, bm)
-        self.newTransformOrientation(matrix,'balbina')
+        self.newTransformOrientation(matrix,'EdgeRoundifier')
         return matrix
 
 
@@ -631,10 +631,11 @@ class EdgeRoundifier(bpy.types.Operator):
         orientation.matrix = mat3
 
         # find 3d views to set to "new"
+    def setTransformationOrientation(self, orientationName):
         screen = context.screen
         views = [area.spaces.active for area in screen.areas if area.type == 'VIEW_3D']
         for view in views:
-            view.transform_orientation = orientation.name
+            view.transform_orientation = orientationName
         
     def makeMatrixFromEdge(self, edge, bm):
         edgeNormal = self.getEdgeNormalWithLinkFaces(edge,bm)
@@ -687,6 +688,15 @@ class EdgeRoundifier(bpy.types.Operator):
         #self.refreshMesh(bm, mesh)
         return result
 
+    def calculateEdgeNormal(self, edge, n):
+        v0 = edge.verts[0].co
+        v1 = edge.verts[1].co
+        a = v1-v0
+        normal = a.cross(n)
+        if self.flip:
+            normal = n.cross(a)
+        return normal
+
     def getEdgeNormalWithLinkFaces(self, edge, bm):
         normal = Vector((0,0,0))
         facesWithEdge = edge.link_faces
@@ -695,17 +705,28 @@ class EdgeRoundifier(bpy.types.Operator):
             n1 = facesWithEdge[0].normal
             n2 = facesWithEdge[1].normal
             normal = n1 + n2
+            print("getEdgeNormal - Using Avg Normal of 2 faces")
         elif lenFacesWithEdge == 1:
             n = facesWithEdge[0].normal
-            v0 = edge.verts[0].co
-            v1 = edge.verts[1].co
-            a = v1-v0
-            normal = a.cross(n)
-            if self.flip:
-                normal = n.cross(a)
+            normal = self.calculateEdgeNormal(edge, n)
+            print("getEdgeNormal - Using Face Normal")
         else:
-            print("getEdgeNormal - error getting normal, lenFacesWithEdge = " +  str(lenFacesWithEdge))
+            viewMatrix = self.getViewMatrix()
+            print ('viewMatrix = ' + str(viewMatrix))
+            if viewMatrix != None :
+                n = viewMatrix[2]
+                normal = self.calculateEdgeNormal(edge, n)
+                print("getEdgeNormal - Using View Normal")
+        print ('Actual Normal = ' + str(normal))
         return normal
+
+    def getViewMatrix(self):
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                r3d = area.spaces.active.region_3d
+                return r3d.view_matrix.to_3x3()
+        return None
+
 ####################### NEW CODE END ###################################
 
     def getNormalizedEdgeVector (self, edge):
