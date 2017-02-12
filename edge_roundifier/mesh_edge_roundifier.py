@@ -673,6 +673,9 @@ class EdgeRoundifier(bpy.types.Operator):
         distance = cos(radians(angle/2)) * self.r
         center -= distance * matrix.transposed()[1]
         print('center=' + str(center))
+
+        if self.invertAngle:
+            angle = 360 - angle
         
         result = bmesh.ops.spin(bm, geom = [v0], cent = center, axis = matrix.transposed()[2], \
                                    angle = radians(angle), steps = steps, use_duplicate = False)
@@ -696,6 +699,8 @@ class EdgeRoundifier(bpy.types.Operator):
             n1 = facesWithEdge[0].normal
             n2 = facesWithEdge[1].normal
             normal = n1 + n2
+            if self.flip:
+                normal = -normal
             print("getEdgeNormal - Using Avg Normal of 2 faces")
         elif lenFacesWithEdge == 1:
             n = facesWithEdge[0].normal
