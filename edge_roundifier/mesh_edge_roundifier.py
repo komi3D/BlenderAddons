@@ -77,6 +77,41 @@ d_Selected_edges = False
 d_Rotate_Around_Spin_Center = False
 ###################################################################################
 
+def updateAngleForAnglePresets(self, context):
+    activeOperator = context.active_operator
+    if activeOperator.angleEnum == "180":
+        activeOperator.a = 180
+    elif activeOperator.angleEnum == "120":
+        activeOperator.a = 120
+    elif activeOperator.angleEnum == "90":
+        activeOperator.a = 90
+    elif activeOperator.angleEnum == "72":
+        activeOperator.a = 72
+    elif activeOperator.angleEnum == "60":
+        activeOperator.a = 60
+    elif activeOperator.angleEnum == "45":
+        activeOperator.a = 45
+    elif activeOperator.angleEnum == "30":
+        activeOperator.a = 30
+
+def updateAnglePresetsForAngle(self, context):
+    activeOperator = context.active_operator
+    if activeOperator.a == 180:
+        activeOperator.angleEnum = "180"
+    elif activeOperator.a == 120:
+        activeOperator.angleEnum = "120"
+    elif activeOperator.a == 90:
+        activeOperator.angleEnum = "90"
+    elif activeOperator.a == 72:
+        activeOperator.angleEnum = "72"
+    elif activeOperator.a == 60:
+        activeOperator.angleEnum = "60"
+    elif activeOperator.a == 45:
+        activeOperator.angleEnum = "45"
+    elif activeOperator.a == 30:
+        activeOperator.angleEnum = "30"
+    else:
+        activeOperator.angleEnum = "Other"
 
 class EdgeWorksPanel(bpy.types.Panel):
     bl_label = "Edge Works"
@@ -287,7 +322,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     edgeScaleFactor = bpy.props.FloatProperty(name = '', default = 1.0, min = 0.00001, max = 100000.0, step = 0.5, precision = 5)
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
-    a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.5, precision = 1)
+    a = bpy.props.FloatProperty(name = '', default = 180.0, min = 0.1, max = 180.0, step = 0.5, precision = 1, update=updateAnglePresetsForAngle)
     n = bpy.props.IntProperty(name = '', default = 4, min = 1, max = 100, step = 1)
     flip = bpy.props.BoolProperty(name = 'Flip', default = False)
     
@@ -350,7 +385,8 @@ class EdgeRoundifier(bpy.types.Operator):
         items = angleItems,
         name = '',
         default = '180',
-        description = "Presets prepare standard angles and calculate proper ray")
+        description = "Presets prepare standard angles and calculate proper ray",
+        update = updateAngleForAnglePresets)
 
     refItems = [('ORG', "Origin", "Use Origin Location"), ('CUR', "3D Cursor", "Use 3DCursor Location")
                 , ('EDG', "Edge", "Use Individual Edge Reference")]
@@ -385,39 +421,6 @@ class EdgeRoundifier(bpy.types.Operator):
         
         edges = [ele for ele in bm.edges if ele.select]
         return edges, mesh, bm
-
-    def prepareParameters(self):
-        parameters = { "a" : "a"}
-        parameters["arcMode"] = self.arcMode
-        parameters["edgeScaleFactor"] = self.edgeScaleFactor
-        parameters["edgeScaleCenterEnum"] = self.edgeScaleCenterEnum
-        parameters["plane"] = self.planeEnum
-        parameters["radius"] = self.r
-        parameters["angle"] = self.a
-        parameters["segments"] = self.n
-        parameters["fullCircles"] = self.fullCircles
-        parameters["invertAngle"] = self.invertAngle
-        parameters["bothSides"] = self.bothSides
-        parameters["angleEnum"] = self.angleEnum
-        parameters["entryMode"] = self.entryMode
-        parameters["workMode"] = self.workMode
-        parameters["refObject"] = self.referenceLocation
-        parameters["flip"] = self.flip
-        parameters["drawArcCenters"] = self.drawArcCenters
-        parameters["removeEdges"] = self.removeEdges
-        parameters["removeScaledEdges"] = self.removeScaledEdges
-        parameters["connectArcWithEdge"] = self.connectArcWithEdge
-        parameters["connectScaledAndBase"] = self.connectScaledAndBase
-        parameters["connectArcs"] = self.connectArcs
-        parameters["connectArcsFlip"] = self.connectArcsFlip
-        parameters["connectArcWithEdgeFlip"] = self.connectArcWithEdgeFlip
-        parameters["axisAngle"] = self.axisAngle
-        parameters["edgeAngle"] = self.edgeAngle
-        parameters["offset"] = self.offset
-        parameters["offset2"] = self.offset2
-        parameters["ellipticFactor"] = self.ellipticFactor
-        parameters["rotateCenter"] = self.rotateCenter
-        return parameters
 
     def draw(self, context):
         layout = self.layout
@@ -502,27 +505,26 @@ class EdgeRoundifier(bpy.types.Operator):
     def execute(self, context):
             
         edges, mesh, bm = self.prepareMesh(context)
-        parameters = self.prepareParameters()
-        
-        self.resetValues(parameters["workMode"])
+               
+        self.resetValues(self.workMode)
         
         self.obj = context.scene.objects.active
 
         if len(edges) > 0:
-            self.roundifyEdges(edges, parameters, bm, mesh)
+            self.roundifyEdges(edges, bm, mesh)
             
-            if parameters["connectScaledAndBase"]:
-                # todo rework this as scaling is moved inside scaleEdge
-                self.connectScaledEdgesWithBaseEdge(edges, edges, bm, mesh)
+            # TODO: rework this as scaling is moved inside scaleEdge
+            # if self.connectScaledAndBase:
+                # self.connectScaledEdgesWithBaseEdge(edges, edges, bm, mesh)
             
             self.sel.refreshMesh(bm, mesh)
             self.selectEdgesAfterRoundifier(context, edges)
         else:
             debugPrint("No edges selected!")
         
-        if parameters["removeEdges"]:
+        if self.removeEdges:
             bmesh.ops.delete(bm, geom = edges, context = 2)
-        if parameters["removeScaledEdges"] and self.edgeScaleFactor != 1.0:    
+        if self.removeScaledEdges and self.edgeScaleFactor != 1.0:    
             bmesh.ops.delete(bm, geom = edges, context = 2)
             
         bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -571,16 +573,15 @@ class EdgeRoundifier(bpy.types.Operator):
         self.rotateCenter = 'Edge'
         ######
         
-    def roundifyEdges(self, edges, parameters, bm, mesh):
+    def roundifyEdges(self, edges, bm, mesh):
         arcs = []
         for e in edges:
-            #arcVerts = self.roundify(e, parameters, bm, mesh)
             matrix = self.creteTransformOrientation(e, mesh, bm)
             arcVerts = self.spinOnEdge(e, mesh, bm, matrix)
             arcs.append(arcVerts)
 
-        if parameters["connectArcs"]: 
-            self.connectArcsTogether(arcs, bm, mesh, parameters)
+        # if parameters["connectArcs"]: 
+        #     self.connectArcsTogether(arcs, bm, mesh, parameters)
 
 ####################### NEW CODE ###################################
 
@@ -1240,7 +1241,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def updateRadiusAndAngle(self, edgeLength):
         if self.entryMode == "Angle":
-            self.CalculateRadiusAndAngleForAnglePresets(edgeLength)
+            self.CalculateRadius(edgeLength)
         else :
             self.CalculateAngle(edgeLength)
 
@@ -1276,7 +1277,6 @@ class EdgeRoundifier(bpy.types.Operator):
             self.a = 45
         elif self.angleEnum == "30":
             self.a = 30
-        self.CalculateRadius(edgeLength)
                       
     def getSpinCenterClosestToRefCenter(self, objLocation, roots):
         root0Distance = (Vector(objLocation) - Vector(roots[0])).length
