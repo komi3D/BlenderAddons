@@ -508,23 +508,22 @@ class EdgeRoundifier(bpy.types.Operator):
         self.resetValues(parameters["workMode"])
         
         self.obj = context.scene.objects.active
-        scaledEdges = self.scaleDuplicatedEdges(bm, edges, parameters)
 
-        if len(scaledEdges) > 0:
-            self.roundifyEdges(scaledEdges, parameters, bm, mesh)
+        if len(edges) > 0:
+            self.roundifyEdges(edges, parameters, bm, mesh)
             
             if parameters["connectScaledAndBase"]:
-                self.connectScaledEdgesWithBaseEdge(scaledEdges, edges, bm, mesh)
+                self.connectScaledEdgesWithBaseEdge(edges, edges, bm, mesh)
             
             self.sel.refreshMesh(bm, mesh)
-            self.selectEdgesAfterRoundifier(context, scaledEdges)
+            self.selectEdgesAfterRoundifier(context, edges)
         else:
             debugPrint("No edges selected!")
         
         if parameters["removeEdges"]:
             bmesh.ops.delete(bm, geom = edges, context = 2)
         if parameters["removeScaledEdges"] and self.edgeScaleFactor != 1.0:    
-            bmesh.ops.delete(bm, geom = scaledEdges, context = 2)
+            bmesh.ops.delete(bm, geom = edges, context = 2)
             
         bpy.ops.object.mode_set(mode = 'OBJECT')
         bm.to_mesh(mesh)
@@ -556,8 +555,7 @@ class EdgeRoundifier(bpy.types.Operator):
         self.connectScaledAndBase = False
         self.connectArcsFlip = False
         self.connectArcWithEdgeFlip = False
-        
-        
+          
         self.axisAngle = 0.0
         self.edgeAngle = 0.0
         self.offset = 0.0
@@ -573,32 +571,6 @@ class EdgeRoundifier(bpy.types.Operator):
         self.rotateCenter = 'Edge'
         ######
         
-    def scaleDuplicatedEdges(self,bm, edges, parameters):
-        scaleCenter = parameters["edgeScaleCenterEnum"]
-        factor = parameters["edgeScaleFactor"]
-        #this code is based on Zeffi's answer to my question
-        duplicateEdges=[]
-        if factor == 1:
-            duplicateEdges = edges
-        else:
-            for e in edges:
-                v1 = e.verts[0].co
-                v2 = e.verts[1].co
-                origin = None
-                if scaleCenter == 'CENTER':
-                    origin = (v1+v2) * 0.5  
-                elif scaleCenter == 'V1':
-                    origin = v1  
-                elif scaleCenter == 'V2':
-                    origin = v2  
-                    
-                bmv1 = bm.verts.new(((v1-origin) * factor) + origin)
-                bmv2 = bm.verts.new(((v2-origin) * factor) + origin)
-                bme = bm.edges.new([bmv1, bmv2])
-                duplicateEdges.append(bme)
-        return duplicateEdges
-        
-        
     def roundifyEdges(self, edges, parameters, bm, mesh):
         arcs = []
         for e in edges:
@@ -611,6 +583,24 @@ class EdgeRoundifier(bpy.types.Operator):
             self.connectArcsTogether(arcs, bm, mesh, parameters)
 
 ####################### NEW CODE ###################################
+
+    def scaleEdge(self, edge, bm):
+        scaleCenter = self.edgeScaleCenterEnum
+        factor = self.edgeScaleFactor
+        v1 = edge.verts[0].co
+        v2 = edge.verts[1].co
+        origin = None
+        if scaleCenter == 'CENTER':
+            origin = (v1 + v2) * 0.5
+        elif scaleCenter == 'V1':
+            origin = v1
+        elif scaleCenter == 'V2':
+            origin = v2
+
+        bmv1 = bm.verts.new(((v1 - origin) * factor) + origin)
+        bmv2 = bm.verts.new(((v2 - origin) * factor) + origin)
+        return bm.edges.new([bmv1, bmv2])
+
 
     def creteTransformOrientation(self, e, mesh, bm):
         matrix = self.makeMatrixFromEdge(e, bm)
@@ -667,7 +657,8 @@ class EdgeRoundifier(bpy.types.Operator):
         m = m.to_3x3()
         return m
 
-    def spinOnEdge(self, edge, mesh, bm, matrix):
+    def spinOnEdge(self, originalEdge, mesh, bm, matrix):
+        edge = self.scaleEdge(originalEdge, bm)
         center = (edge.verts[0].co + edge.verts[1].co )/2
         V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
         v0org = edge.verts[1]
