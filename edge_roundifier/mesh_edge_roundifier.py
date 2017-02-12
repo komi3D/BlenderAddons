@@ -270,8 +270,6 @@ class SelectionHelper:
         bm.to_mesh(mesh)
         bpy.ops.object.mode_set(mode = 'EDIT')
 
-
-
 ###################################################################################
 
 class EdgeRoundifier(bpy.types.Operator):
@@ -283,6 +281,9 @@ class EdgeRoundifier(bpy.types.Operator):
     threshold = 0.0005
     
     obj = None
+
+    calc = CalculationHelper()
+    sel = SelectionHelper()
 
     edgeScaleFactor = bpy.props.FloatProperty(name = '', default = 1.0, min = 0.00001, max = 100000.0, step = 0.5, precision = 5)
     r = bpy.props.FloatProperty(name = '', default = 1, min = 0.00001, max = 1000.0, step = 0.1, precision = 3)
@@ -373,8 +374,6 @@ class EdgeRoundifier(bpy.types.Operator):
         default = 'CENTER',
         description = "Center used for scaling initial edge")
 
-    calc = CalculationHelper()
-    sel = SelectionHelper()
     
     def prepareMesh(self, context):
         bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -426,8 +425,8 @@ class EdgeRoundifier(bpy.types.Operator):
         uiPercentage = 0.333
 
         self.addEnumParameterToUI(box, False, uiPercentage, 'Mode:', 'workMode')
-        self.addEnumParameterToUI(box, False, uiPercentage, 'Plane:', 'planeEnum')
-        self.addEnumParameterToUI(box, False, uiPercentage, 'Reference:', 'referenceLocation')
+        #self.addEnumParameterToUI(box, False, uiPercentage, 'Plane:', 'planeEnum')
+        #self.addEnumParameterToUI(box, False, uiPercentage, 'Reference:', 'referenceLocation')
 
         box = layout.box()
         self.addEnumParameterToUI(box, False, uiPercentage, 'Scale base:', 'edgeScaleCenterEnum')
@@ -513,6 +512,7 @@ class EdgeRoundifier(bpy.types.Operator):
             self.roundifyEdges(edges, parameters, bm, mesh)
             
             if parameters["connectScaledAndBase"]:
+                # todo rework this as scaling is moved inside scaleEdge
                 self.connectScaledEdgesWithBaseEdge(edges, edges, bm, mesh)
             
             self.sel.refreshMesh(bm, mesh)
@@ -659,15 +659,14 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def spinOnEdge(self, originalEdge, mesh, bm, matrix):
         edge = self.scaleEdge(originalEdge, bm)
-        center = (edge.verts[0].co + edge.verts[1].co )/2
-        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
+        V1, V2, edgeVector, edgeLength, center = self.getEdgeInfo(edge)
+        self.updateRadiusAndAngle(edgeLength)
+        #center = (edge.verts[0].co + edge.verts[1].co )/2
         v0org = edge.verts[1]
         if self.invertAngle:
             v0org = edge.verts[0]
         v0 = bm.verts.new(v0org.co)
         steps = self.n
-
-        self.CalculateRadiusAndAngle(edgeLength)
         angle = self.a
         #cos alfa/2 = distance / radius
         distance = cos(radians(angle/2)) * self.r
@@ -994,7 +993,7 @@ class EdgeRoundifier(bpy.types.Operator):
             if (parameters["angleEnum"] != 'Other'):
                 radius, angle = self.CalculateRadiusAndAngleForAnglePresets(parameters["angleEnum"], radius, angle, edgeLength)
             else:
-                radius, angle = self.CalculateRadiusAndAngle(edgeLength)
+                radius, angle = self.CalculateRadius(edgeLength)
         debugPrintNew(d_Radius_Angle, "RADIUS = " + str(radius) + "  ANGLE = " + str( angle))
         roots = None
         if angle != pi:  # mode other than 180
@@ -1239,31 +1238,45 @@ class EdgeRoundifier(bpy.types.Operator):
         lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
         return lastSpinVertIndices
 
-    def CalculateRadiusAndAngle(self, edgeLength):
+    def updateRadiusAndAngle(self, edgeLength):
+        if self.entryMode == "Angle":
+            self.CalculateRadiusAndAngleForAnglePresets(edgeLength)
+        else :
+            self.CalculateAngle(edgeLength)
+
+    def CalculateAngle(self, edgeLength):
+        halfEdgeLength = edgeLength / 2
+        print ('>>> halfEdgeLength = ' +  str(halfEdgeLength)+ ' >>> r =' + str(self.r) )
+        if halfEdgeLength > self.r:
+            self.a = 180
+        else:
+            halfAngle = asin(halfEdgeLength / self.r)
+            angle = 2 * halfAngle  # in radians
+            self.a = degrees(angle)  # in degrees
+        print('>>>> Angle = ' + str(self.a))
+
+
+    def CalculateRadius(self, edgeLength):
         degAngle = self.a
         angle = radians(degAngle)
-        self.r = radius = edgeLength / (2 * sin(angle / 2))
-        return radius, angle
+        self.r = edgeLength / (2 * sin(angle / 2))
     
-    def CalculateRadiusAndAngleForAnglePresets(self, angleEnum, initR, initA, edgeLength):
-        radius = initR
-        angle = initA
-
-        if angleEnum == "180":
+    def CalculateRadiusAndAngleForAnglePresets(self, edgeLength):
+        if self.angleEnum == "180":
             self.a = 180
-        elif angleEnum == "120":
+        elif self.angleEnum == "120":
             self.a = 120
-        elif angleEnum == "90":
+        elif self.angleEnum == "90":
             self.a = 90
-        elif angleEnum == "72":
+        elif self.angleEnum == "72":
             self.a = 72
-        elif angleEnum == "60":
+        elif self.angleEnum == "60":
             self.a = 60
-        elif angleEnum == "45":
+        elif self.angleEnum == "45":
             self.a = 45
-        elif angleEnum == "30":
+        elif self.angleEnum == "30":
             self.a = 30
-        return self.CalculateRadiusAndAngle(edgeLength)
+        self.CalculateRadius(edgeLength)
                       
     def getSpinCenterClosestToRefCenter(self, objLocation, roots):
         root0Distance = (Vector(objLocation) - Vector(roots[0])).length
