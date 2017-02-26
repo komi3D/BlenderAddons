@@ -581,6 +581,9 @@ class EdgeRoundifier(bpy.types.Operator):
     def scaleEdge(self, edge, bm):
         scaleCenter = self.edgeScaleCenterEnum
         factor = self.edgeScaleFactor
+        if (factor == 1):
+            return edge
+
         v1 = edge.verts[0].co
         v2 = edge.verts[1].co
         origin = None
@@ -636,7 +639,7 @@ class EdgeRoundifier(bpy.types.Operator):
         if c.magnitude>0:
             c = c.normalized()
         else:
-            raise BaseException("A B C are colinear")
+            self.report({'WARNING'}, "Impossible to draw arc. Use other plane.")
 
         b2 = c.cross(a).normalized()
         a2 = a.normalized()
@@ -688,43 +691,44 @@ class EdgeRoundifier(bpy.types.Operator):
         elif (self.planeEnum == 'View'):
             normal = self.getEdgeNormalView(edge)
         elif (self.planeEnum == 'Face1'):
-            normal = self.getEdgeNormalFace(edge, facesWithEdge[0])
+            if (lenFacesWithEdge >= 1):
+                normal = self.getEdgeNormalFace(edge, facesWithEdge[0])
+            else:
+                self.report({'WARNING'}, "Edge has no faces attached. Use other plane.")
         elif (self.planeEnum == 'Face2'):
-            normal = self.getEdgeNormalFace(edge, facesWithEdge[1])
+            if (lenFacesWithEdge > 1):
+                normal = self.getEdgeNormalFace(edge, facesWithEdge[1])
+            elif (lenFacesWithEdge == 1):
+                self.report({'WARNING'}, "Edge has only 1 face attached. Use other face plane.")
+                normal = self.getEdgeVector(edge)
+            else:
+                self.report({'WARNING'}, "Edge has no faces attached. Use other plane.")
+                normal = self.getEdgeVector(edge)
         elif (self.planeEnum == 'XY'):
             normal = self.getEdgeNormalReqVector(edge, Vector((0,0,1)))    
         elif (self.planeEnum == 'XZ'):
             normal = self.getEdgeNormalReqVector(edge, Vector((0,1,0)))
-        elif (self.planeEnum == 'XY'):
+        elif (self.planeEnum == 'YZ'):
             normal = self.getEdgeNormalReqVector(edge, Vector((1,0,0)))
-        #normal = self.getEdgeNormalAuto(edge, facesWithEdge, lenFacesWithEdge)
         print ('Actual Normal = ' + str(normal))
         return normal
 
+    def getEdgeVector (self, edge):
+        V1, V2, edgeVector, edgeLength, center = self.getEdgeInfo(edge)
+        return edgeVector
+
     def getEdgeNormalAuto(self, edge, facesWithEdge, lenFacesWithEdge):
-        normal = Vector((0,0,0))
+        normal = Vector((0,0,1))
         if lenFacesWithEdge == 2:
-            n1 = facesWithEdge[0].normal
-            n2 = facesWithEdge[1].normal
-            normal = n1 + n2
-            if self.flip:
-                normal = -normal
-            print("getEdgeNormal - Using Avg Normal of 2 faces")
+           normal = self.getEdgeNormalBetween2Faces(edge,facesWithEdge)
         elif lenFacesWithEdge == 1:
-            n = facesWithEdge[0].normal
-            normal = self.calculateEdgeNormal(edge, n)
-            print("getEdgeNormal - Using Face Normal")
+            normal = self.getEdgeNormalFace(edge,facesWithEdge[0])
         else:
-            viewMatrix = self.getViewMatrix()
-            print ('viewMatrix = ' + str(viewMatrix))
-            if viewMatrix != None :
-                n = viewMatrix[2]
-                normal = self.calculateEdgeNormal(edge, n)
-                print("getEdgeNormal - Using View Normal")
+            normal = self.getEdgeNormalView(edge)
         return normal
 
-    def getEdgeNormalView(self, edge):
-        normal = Vector((0,0,0))
+    def getEdgeNormalView(self, edge): #OK
+        normal = Vector((0,0,1))
         viewMatrix = self.getViewMatrix()
         print ('viewMatrix = ' + str(viewMatrix))
         if viewMatrix != None :
@@ -733,13 +737,22 @@ class EdgeRoundifier(bpy.types.Operator):
             print("getEdgeNormalView - Using View Normal")
         return normal
 
-    def getEdgeNormalFace(self, face):
-        n = faces.normal
+    def getEdgeNormalBetween2Faces(self, edge, faces):
+        n1 = faces[0].normal
+        n2 = faces[1].normal
+        normal = n1 + n2
+        if self.flip:
+            normal = -normal
+        print("getEdgeNormalBetween2Faces")
+        return normal
+
+    def getEdgeNormalFace(self, edge, face):
+        n = face.normal
         normal = self.calculateEdgeNormal(edge, n)
         print("getEdgeNormalFace - Using Face Normal")
         return normal
     
-    def getEdgeNormalReqVector(edge, vec):
+    def getEdgeNormalReqVector(self, edge, vec):
         normal = self.calculateEdgeNormal(edge, vec)
         print("getEdgeNormalReqVector - Using supplied default Normal")
         return normal
