@@ -21,7 +21,7 @@ bl_info = {
     "name": "Edge Roundifier",
     "category": "Mesh",
     'author': 'Piotr Komisarczyk (komi3D), PKHG',
-    'version': (1, 0, 0),
+    'version': (2, 0, 0),
     'blender': (2, 7, 3),
     'location': 'SPACE > Edge Roundifier or CTRL-E > Edge Roundifier or Tools > Addons > Edge Roundifier',
     'description': 'Mesh editing script allowing edge rounding',
@@ -77,41 +77,33 @@ d_Selected_edges = False
 d_Rotate_Around_Spin_Center = False
 ###################################################################################
 
+def isAngleDifferentFromPredefined(angle):
+    return (angle != 30 and angle != 45 and angle != 60\
+        and angle != 72 and angle != 90 and angle != 120 and angle != 180 )
+
 def updateAngleForAnglePresets(self, context):
     activeOperator = context.active_operator
-    if activeOperator.angleEnum == "180":
-        activeOperator.a = 180
-    elif activeOperator.angleEnum == "120":
-        activeOperator.a = 120
-    elif activeOperator.angleEnum == "90":
-        activeOperator.a = 90
-    elif activeOperator.angleEnum == "72":
-        activeOperator.a = 72
-    elif activeOperator.angleEnum == "60":
-        activeOperator.a = 60
-    elif activeOperator.angleEnum == "45":
-        activeOperator.a = 45
-    elif activeOperator.angleEnum == "30":
-        activeOperator.a = 30
+    if activeOperator != None:
+        if activeOperator.angleEnum == "180":
+            activeOperator.a = 180
+        elif activeOperator.angleEnum == "120":
+            activeOperator.a = 120
+        elif activeOperator.angleEnum == "90":
+            activeOperator.a = 90
+        elif activeOperator.angleEnum == "72":
+            activeOperator.a = 72
+        elif activeOperator.angleEnum == "60":
+            activeOperator.a = 60
+        elif activeOperator.angleEnum == "45":
+            activeOperator.a = 45
+        elif activeOperator.angleEnum == "30":
+            activeOperator.a = 30
 
 def updateAnglePresetsForAngle(self, context):
     activeOperator = context.active_operator
-    if activeOperator.a == 180:
-        activeOperator.angleEnum = "180"
-    elif activeOperator.a == 120:
-        activeOperator.angleEnum = "120"
-    elif activeOperator.a == 90:
-        activeOperator.angleEnum = "90"
-    elif activeOperator.a == 72:
-        activeOperator.angleEnum = "72"
-    elif activeOperator.a == 60:
-        activeOperator.angleEnum = "60"
-    elif activeOperator.a == 45:
-        activeOperator.angleEnum = "45"
-    elif activeOperator.a == 30:
-        activeOperator.angleEnum = "30"
-    else:
-        activeOperator.angleEnum = "Other"
+    if activeOperator != None:
+        if isAngleDifferentFromPredefined(activeOperator.a):
+            activeOperator.angleEnum = "Other"
 
 class EdgeWorksPanel(bpy.types.Panel):
     bl_label = "Edge Works"
@@ -314,7 +306,6 @@ class EdgeRoundifier(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO', 'PRESET'}  # enable undo for the operator.PKHG>INFO and PRESET
 
     threshold = 0.0005
-    
     obj = None
 
     calc = CalculationHelper()
@@ -396,11 +387,12 @@ class EdgeRoundifier(bpy.types.Operator):
         default = 'ORG',
         description = "Reference location used by Edge Roundifier to calculate initial centers of drawn arcs")
 
-    planeItems = [(XY, XY, "XY Plane (Z=0)"), (YZ, YZ, "YZ Plane (X=0)"), (XZ, XZ, "XZ Plane (Y=0)")]
+    planeItems = [('Auto', 'Auto', "Automatic"), ('Face1', 'Face1', "Face1 Plane"), ('Face2', 'Face2', "Face2 Plane"), 
+    ('View', 'View', "View Plane"), (XY, XY, "XY Plane (Z=0)"), (YZ, YZ, "YZ Plane (X=0)"), (XZ, XZ, "XZ Plane (Y=0)")]
     planeEnum = bpy.props.EnumProperty(
         items = planeItems,
         name = '',
-        default = 'XY',
+        default = 'Auto',
         description = "Plane used by Edge Roundifier to calculate spin plane of drawn arcs")
 
     edgeScaleCenterItems = [('V1', "V1", "v1"), ('CENTER', "Center", "cent"), ('V2', "V2", "v2")]
@@ -428,8 +420,7 @@ class EdgeRoundifier(bpy.types.Operator):
         uiPercentage = 0.333
 
         self.addEnumParameterToUI(box, False, uiPercentage, 'Mode:', 'workMode')
-        #self.addEnumParameterToUI(box, False, uiPercentage, 'Plane:', 'planeEnum')
-        #self.addEnumParameterToUI(box, False, uiPercentage, 'Reference:', 'referenceLocation')
+        self.addEnumParameterToUI(box, False, uiPercentage, 'Plane:', 'planeEnum', False)
 
         box = layout.box()
         self.addEnumParameterToUI(box, False, uiPercentage, 'Scale base:', 'edgeScaleCenterEnum')
@@ -437,10 +428,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
         box = layout.box()
         self.addEnumParameterToUI(box, False, uiPercentage, 'Entry mode:', 'entryMode')
-        
         row = box.row (align = False)
         row.prop(self, 'angleEnum', expand = True, text = "angle presets")
-
         self.addParameterToUI(box, False, uiPercentage, 'Angle:', 'a')
         self.addParameterToUI(box, False, uiPercentage, 'Radius:', 'r')
         self.addParameterToUI(box, False, uiPercentage, 'Segments:', 'n')
@@ -493,14 +482,17 @@ class EdgeRoundifier(bpy.types.Operator):
         row.prop(self, property1)
         row.label('')
         
-    def addEnumParameterToUI(self, layout, alignment, percent, label, property):
+    def addEnumParameterToUI(self, layout, alignment, percent, label, property, expanded=True):
         row = layout.row (align = alignment)
         split = row.split(percentage=percent)
         col = split.column()
         col.label(label)
         col2 = split.column()
         row = col2.row(align = alignment)
-        row.prop(self, property, expand = True, text = "a")
+        if (expanded):
+            row.prop(self, property, expand = expanded, text = " ") #text allows to display expanded in UI, maybe a bug?
+        else:
+            row.prop(self, property, expand = expanded)
 
     def execute(self, context):
             
@@ -568,7 +560,7 @@ class EdgeRoundifier(bpy.types.Operator):
         self.entryMode = 'Angle'
         self.angleEnum = '180'
         self.referenceLocation = 'ORG'
-        self.planeEnum = 'XY'
+        self.planeEnum = 'Auto'
         self.edgeScaleCenterEnum = 'CENTER'
         self.rotateCenter = 'Edge'
         ######
@@ -576,6 +568,7 @@ class EdgeRoundifier(bpy.types.Operator):
     def roundifyEdges(self, edges, bm, mesh):
         arcs = []
         for e in edges:
+            print ('=======================================')
             matrix = self.creteTransformOrientation(e, mesh, bm)
             arcVerts = self.spinOnEdge(e, mesh, bm, matrix)
             arcs.append(arcVerts)
@@ -634,8 +627,6 @@ class EdgeRoundifier(bpy.types.Operator):
         v2 = edge.verts[1].co
         v3 = v1 + edgeNormal
         mat = self.makeMatrixFromVerts(v1,v2,v3)
-        print('MATRIX:')
-        print(mat)
         return mat
         
     def makeMatrixFromVerts(self, v1, v2, v3):
@@ -649,8 +640,6 @@ class EdgeRoundifier(bpy.types.Operator):
 
         b2 = c.cross(a).normalized()
         a2 = a.normalized()
-        print('matrix Z=')
-        print(c)
         m = Matrix([a2, b2, c]).transposed()
         #s = a.magnitude
         s = 1
@@ -672,7 +661,6 @@ class EdgeRoundifier(bpy.types.Operator):
         #cos alfa/2 = distance / radius
         distance = cos(radians(angle/2)) * self.r
         center -= distance * matrix.transposed()[1]
-        print('center=' + str(center))
 
         if self.invertAngle:
             angle = 360 - angle
@@ -692,9 +680,29 @@ class EdgeRoundifier(bpy.types.Operator):
         return normal
 
     def getEdgeNormalWithLinkFaces(self, edge, bm):
-        normal = Vector((0,0,0))
+        normal = Vector((0,0,1))
         facesWithEdge = edge.link_faces
         lenFacesWithEdge = len(facesWithEdge)
+        if (self.planeEnum == 'Auto'):
+            normal = self.getEdgeNormalAuto(edge, facesWithEdge, lenFacesWithEdge)
+        elif (self.planeEnum == 'View'):
+            normal = self.getEdgeNormalView(edge)
+        elif (self.planeEnum == 'Face1'):
+            normal = self.getEdgeNormalFace(edge, facesWithEdge[0])
+        elif (self.planeEnum == 'Face2'):
+            normal = self.getEdgeNormalFace(edge, facesWithEdge[1])
+        elif (self.planeEnum == 'XY'):
+            normal = self.getEdgeNormalReqVector(edge, Vector((0,0,1)))    
+        elif (self.planeEnum == 'XZ'):
+            normal = self.getEdgeNormalReqVector(edge, Vector((0,1,0)))
+        elif (self.planeEnum == 'XY'):
+            normal = self.getEdgeNormalReqVector(edge, Vector((1,0,0)))
+        #normal = self.getEdgeNormalAuto(edge, facesWithEdge, lenFacesWithEdge)
+        print ('Actual Normal = ' + str(normal))
+        return normal
+
+    def getEdgeNormalAuto(self, edge, facesWithEdge, lenFacesWithEdge):
+        normal = Vector((0,0,0))
         if lenFacesWithEdge == 2:
             n1 = facesWithEdge[0].normal
             n2 = facesWithEdge[1].normal
@@ -713,8 +721,29 @@ class EdgeRoundifier(bpy.types.Operator):
                 n = viewMatrix[2]
                 normal = self.calculateEdgeNormal(edge, n)
                 print("getEdgeNormal - Using View Normal")
-        print ('Actual Normal = ' + str(normal))
         return normal
+
+    def getEdgeNormalView(self, edge):
+        normal = Vector((0,0,0))
+        viewMatrix = self.getViewMatrix()
+        print ('viewMatrix = ' + str(viewMatrix))
+        if viewMatrix != None :
+            n = viewMatrix[2]
+            normal = self.calculateEdgeNormal(edge, n)
+            print("getEdgeNormalView - Using View Normal")
+        return normal
+
+    def getEdgeNormalFace(self, face):
+        n = faces.normal
+        normal = self.calculateEdgeNormal(edge, n)
+        print("getEdgeNormalFace - Using Face Normal")
+        return normal
+    
+    def getEdgeNormalReqVector(edge, vec):
+        normal = self.calculateEdgeNormal(edge, vec)
+        print("getEdgeNormalReqVector - Using supplied default Normal")
+        return normal
+        
 
     def getViewMatrix(self):
         for area in bpy.context.screen.areas:
@@ -1245,6 +1274,7 @@ class EdgeRoundifier(bpy.types.Operator):
         return lastSpinVertIndices
 
     def updateRadiusAndAngle(self, edgeLength):
+#        print('updateRadiusAndAngle: EntryMode: ' + str(self.entryMode))
         if self.entryMode == "Angle":
             self.CalculateRadius(edgeLength)
         else :
@@ -1252,37 +1282,21 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def CalculateAngle(self, edgeLength):
         halfEdgeLength = edgeLength / 2
-        print ('>>> halfEdgeLength = ' +  str(halfEdgeLength)+ ' >>> r =' + str(self.r) )
         if halfEdgeLength > self.r:
             self.a = 180
         else:
             halfAngle = asin(halfEdgeLength / self.r)
             angle = 2 * halfAngle  # in radians
             self.a = degrees(angle)  # in degrees
-        print('>>>> Angle = ' + str(self.a))
+        print('CalculateAngle: a = ' + str(self.a) + ' r = ' + str(self.r))
 
 
     def CalculateRadius(self, edgeLength):
         degAngle = self.a
         angle = radians(degAngle)
         self.r = edgeLength / (2 * sin(angle / 2))
-    
-    def CalculateRadiusAndAngleForAnglePresets(self, edgeLength):
-        if self.angleEnum == "180":
-            self.a = 180
-        elif self.angleEnum == "120":
-            self.a = 120
-        elif self.angleEnum == "90":
-            self.a = 90
-        elif self.angleEnum == "72":
-            self.a = 72
-        elif self.angleEnum == "60":
-            self.a = 60
-        elif self.angleEnum == "45":
-            self.a = 45
-        elif self.angleEnum == "30":
-            self.a = 30
-                      
+        print('CalculateRadius: a = ' + str(self.a) + ' r = ' + str(self.r))
+                          
     def getSpinCenterClosestToRefCenter(self, objLocation, roots):
         root0Distance = (Vector(objLocation) - Vector(roots[0])).length
         root1Distance = (Vector(objLocation) - Vector(roots[1])).length 
@@ -1343,7 +1357,11 @@ class EdgeRoundifier(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         return (context.scene.objects.active.type == 'MESH') and (context.scene.objects.active.mode == 'EDIT')
-    
+
+
+
+
+
 def draw_item(self, context):
     self.layout.operator_context = 'INVOKE_DEFAULT'
     self.layout.operator('mesh.edge_roundifier')

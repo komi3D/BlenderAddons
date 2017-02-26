@@ -199,6 +199,12 @@ class TestAddon(bpy.types.Operator):
 def register():
     bpy.utils.register_class(TestAddon)
 
+    ptvsd_path = 'c:/Python34/Lib/site-packages'
+    import sys
+    if sys.path.count(ptvsd_path) < 1:  
+        sys.path.append(ptvsd_path) 
+    import ptvsd
+    ptvsd.enable_attach("my_secret", address = ('127.0.0.1', 3000))
 
 def unregister():
     bpy.utils.unregister_class(TestAddon)
