@@ -542,11 +542,6 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if len(edges) > 0:
             self.roundifyEdges(edges, bm, mesh)
-
-            # TODO: rework this as scaling is moved inside scaleEdge
-            # if self.connectScaledAndBase:
-            # self.connectScaledEdgesWithBaseEdge(edges, edges, bm, mesh)
-
             self.sel.refreshMesh(bm, mesh)
             self.selectEdgesAfterRoundifier(context, edges)
         else:
@@ -607,15 +602,19 @@ class EdgeRoundifier(bpy.types.Operator):
         arcs = []
         for e in edges:
             print('=======================================')
-            matrix = self.creteTransformOrientation(e, mesh, bm)
-            arcVerts = self.spinOnEdge(e, mesh, bm, matrix)
+            matrix = self.creteTransformOrientation(e, bm, mesh)
+            arcVerts = self.processEdge(e, bm, mesh, matrix)
             arcs.append(arcVerts)
 
         # if parameters["connectArcs"]:
         #     self.connectArcsTogether(arcs, bm, mesh, parameters)
+    def processEdge(self, edge, bm, mesh, matrix):
+        # TODO Here we can handle different profiles for edge like smooth, cos, etc
+        return self.createArc(edge, bm, mesh, matrix)
+
+
 
 ####################### NEW CODE ###################################
-
     def scaleEdge(self, edge, bm):
         scaleCenter = self.edgeScaleCenterEnum
         factor = self.edgeScaleFactor
@@ -636,7 +635,7 @@ class EdgeRoundifier(bpy.types.Operator):
         bmv2 = bm.verts.new(((v2 - origin) * factor) + origin)
         return bm.edges.new([bmv1, bmv2])
 
-    def creteTransformOrientation(self, e, mesh, bm):
+    def creteTransformOrientation(self, e, bm, mesh):
         matrix = self.makeMatrixFromEdge(e, bm)
         self.newTransformOrientation(matrix, 'EdgeRoundifier')
         return matrix
@@ -689,25 +688,42 @@ class EdgeRoundifier(bpy.types.Operator):
         m = m.to_3x3()
         return m
 
-    def spinOnEdge(self, originalEdge, mesh, bm, matrix):
+    def createArc(self, originalEdge, bm, mesh, matrix):
         edge = self.scaleEdge(originalEdge, bm)
-        V1, V2, edgeVector, edgeLength, center = self.getEdgeInfo(edge)
+        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
         self.updateRadiusAndAngle(edgeLength)
-        #center = (edge.verts[0].co + edge.verts[1].co )/2
-        v0org = edge.verts[1]
+
+        startVertIndex = 1
         if self.invertAngle:
-            v0org = edge.verts[0]
+            startVertIndex = 0
+        v0org = edge.verts[startVertIndex]
         v0 = bm.verts.new(v0org.co)
         steps = self.n
         angle = self.a
-        #cos alfa/2 = distance / radius
         distance = cos(radians(angle / 2)) * self.r
-        center -= distance * matrix.transposed()[1]
+        center = edgeCenter - (distance * matrix.transposed()[1])
 
         if self.invertAngle:
             angle = 360 - angle
+        if self.fullCircles:
+            angle = 360
 
         result = bmesh.ops.spin(bm, geom=[v0], cent=center, axis=matrix.transposed()[2],
+                                angle=radians(angle), steps=steps, use_duplicate=False)
+        if (self.drawArcCenters):
+            bm.verts.new(center)
+
+        if(self.bothSides):
+            center = edgeCenter + (distance * matrix.transposed()[1])
+            if (self.drawArcCenters):
+                bm.verts.new(center)
+            if (startVertIndex == 1):
+                otherIndex = 0
+            else:
+                otherIndex = 1
+            v1org = edge.verts[otherIndex]
+            v1 = bm.verts.new(v1org.co)
+            result2 = bmesh.ops.spin(bm, geom=[v1], cent=center, axis=matrix.transposed()[2],
                                 angle=radians(angle), steps=steps, use_duplicate=False)
         #self.refreshMesh(bm, mesh)
         return result
