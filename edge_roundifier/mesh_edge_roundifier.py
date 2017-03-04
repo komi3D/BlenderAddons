@@ -410,7 +410,8 @@ class EdgeRoundifier(bpy.types.Operator):
         description="Reference location used by Edge Roundifier to calculate initial centers of drawn arcs")
 
     planeItems = [('Auto', 'Auto', "Automatic"), ('Face1', 'Face1', "Face1 Plane"), ('Face2', 'Face2', "Face2 Plane"),
-                  ('View', 'View', "View Plane"), (XY, XY, "XY Plane (Z=0)"), (YZ, YZ, "YZ Plane (X=0)"), (XZ, XZ, "XZ Plane (Y=0)")]
+                  ('View', 'View', "View Plane"), (XY, XY, "Top view plane"), (YZ, YZ, "Right view plane"), (XZ, XZ, "Front view plane"),
+                  ('AlongX', 'AlongX', 'AlongX'), ('AlongY', 'AlongY', 'AlongY'), ('AlongZ', 'AlongZ', 'AlongZ')]
     planeEnum = bpy.props.EnumProperty(
         items=planeItems,
         name='',
@@ -543,14 +544,9 @@ class EdgeRoundifier(bpy.types.Operator):
         if len(edges) > 0:
             self.roundifyEdges(edges, bm, mesh)
             self.sel.refreshMesh(bm, mesh)
-            self.selectEdgesAfterRoundifier(context, edges)
+            #self.selectEdgesAfterRoundifier(context, edges)
         else:
             debugPrint("No edges selected!")
-
-        if self.removeEdges:
-            bmesh.ops.delete(bm, geom=edges, context=2)
-        if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
-            bmesh.ops.delete(bm, geom=edges, context=2)
 
         bpy.ops.object.mode_set(mode='OBJECT')
         bm.to_mesh(mesh)
@@ -725,7 +721,11 @@ class EdgeRoundifier(bpy.types.Operator):
             v1 = bm.verts.new(v1org.co)
             result2 = bmesh.ops.spin(bm, geom=[v1], cent=center, axis=matrix.transposed()[2],
                                 angle=radians(angle), steps=steps, use_duplicate=False)
-        #self.refreshMesh(bm, mesh)
+        
+        if self.removeEdges:
+            bmesh.ops.delete(bm, geom=[originalEdge], context=2)
+        if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
+            bmesh.ops.delete(bm, geom=[edge], context=2)
         return result
 
     def calculateEdgeNormal(self, edge, n):
@@ -769,6 +769,13 @@ class EdgeRoundifier(bpy.types.Operator):
             normal = self.getEdgeNormalReqVector(edge, Vector((0, 1, 0)))
         elif (self.planeEnum == 'YZ'):
             normal = self.getEdgeNormalReqVector(edge, Vector((1, 0, 0)))
+        elif (self.planeEnum == 'AlongX'):
+            normal = self.getVector(Vector((1, 0, 0)))
+        elif (self.planeEnum == 'AlongY'):
+            normal = self.getVector(Vector((0, 1, 0)))
+        elif (self.planeEnum == 'AlongZ'):
+            normal = self.getVector(Vector((0, 0, 1)))
+
         print('Actual Normal = ' + str(normal))
         return normal
 
@@ -781,7 +788,7 @@ class EdgeRoundifier(bpy.types.Operator):
         if lenFacesWithEdge == 2:
            normal = self.getEdgeNormalBetween2Faces(edge, facesWithEdge)
         elif lenFacesWithEdge == 1:
-            normal = self.getEdgeNormalFace(edge, facesWithEdge[0])
+            normal = self.getFaceNormal(facesWithEdge[0])
         else:
             normal = self.getEdgeNormalView(edge)
         return normal
@@ -811,9 +818,20 @@ class EdgeRoundifier(bpy.types.Operator):
         print("getEdgeNormalFace - Using Face Normal")
         return normal
 
+    def getFaceNormal(self, face):
+        normal = face.normal
+        if self.flip:
+            normal = -face.normal
+        return normal
+
     def getEdgeNormalReqVector(self, edge, vec):
         normal = self.calculateEdgeNormal(edge, vec)
-        print("getEdgeNormalReqVector - Using supplied default Normal")
+        return normal
+
+    def getVector(self, vec):
+        normal = vec
+        if self.flip:
+            normal = -vec
         return normal
 
     def getViewMatrix(self):
