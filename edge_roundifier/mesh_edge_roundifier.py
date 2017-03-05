@@ -544,9 +544,12 @@ class EdgeRoundifier(bpy.types.Operator):
         if len(edges) > 0:
             self.roundifyEdges(edges, bm, mesh)
             self.sel.refreshMesh(bm, mesh)
-            #self.selectEdgesAfterRoundifier(context, edges)
+            # self.selectEdgesAfterRoundifier(context, edges)
         else:
             debugPrint("No edges selected!")
+
+        if self.removeEdges:
+            bmesh.ops.delete(bm, geom=edges, context=2)
 
         bpy.ops.object.mode_set(mode='OBJECT')
         bm.to_mesh(mesh)
@@ -722,11 +725,27 @@ class EdgeRoundifier(bpy.types.Operator):
             result2 = bmesh.ops.spin(bm, geom=[v1], cent=center, axis=matrix.transposed()[2],
                                 angle=radians(angle), steps=steps, use_duplicate=False)
         
-        if self.removeEdges:
-            bmesh.ops.delete(bm, geom=[originalEdge], context=2)
         if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
             bmesh.ops.delete(bm, geom=[edge], context=2)
+
+        #TODO if for including both sides
+        self.selectResultVerts(steps, bm, mesh)
         return result
+
+    def selectResultVerts(self, steps, bm, mesh):
+        vertsLength = len(bm.verts)
+        bm.verts.ensure_lookup_table()
+        lastVertIndex = bm.verts[vertsLength - 1].index
+
+        lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
+        for i in lastSpinVertIndices:
+            bm.verts[i].select = True
+        edges = bm.edges
+        for e in edges:
+            if e.verts[0].index in lastSpinVertIndices and e.verts[1].index in lastSpinVertIndices:
+                if e.verts[0].select and e.verts[1].select:
+                    e.select = True
+        self.sel.refreshMesh(bm, mesh)
 
     def calculateEdgeNormal(self, edge, n):
         v0 = edge.verts[0].co
@@ -1402,7 +1421,7 @@ class EdgeRoundifier(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='EDIT')
 
     def getLastSpinVertIndices(self, steps, lastVertIndex):
-        arcfirstVertexIndex = lastVertIndex - steps + 1
+        arcfirstVertexIndex = lastVertIndex - steps #+ 1
         lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
         return lastSpinVertIndices
 
