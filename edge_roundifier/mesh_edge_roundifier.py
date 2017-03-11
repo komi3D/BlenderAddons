@@ -315,7 +315,7 @@ class EdgeRoundifier(bpy.types.Operator):
     # enable undo for the operator.PKHG>INFO and PRESET
     bl_options = {'REGISTER', 'UNDO', 'PRESET'}
 
-    threshold = 0.0005
+    threshold = 0.0001
     obj = None
 
     calc = CalculationHelper()
@@ -614,6 +614,15 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
 ####################### NEW CODE ###################################
+    def calculateSelectionCenter(self, edges):
+        selectionCenter = Vector((0, 0, 0))
+        for e in edges:
+            V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(e)
+            selectionCenter += edgeCenter
+        selectionCenter /= len(edges)
+        print('CENTER = ' + str(selectionCenter))
+        return selectionCenter
+
     def scaleEdge(self, edge, bm):
         scaleCenter = self.edgeScaleCenterEnum
         factor = self.edgeScaleFactor
@@ -647,9 +656,7 @@ class EdgeRoundifier(bpy.types.Operator):
         bpy.ops.transform.create_orientation(
             name=orientationName, overwrite=True)
         orientation = scene.orientations.get(orientationName)
-
         mat3 = mat.to_3x3()
-
         orientation.matrix = mat3
 
         # find 3d views to set to "new"
@@ -687,50 +694,36 @@ class EdgeRoundifier(bpy.types.Operator):
         m = m.to_3x3()
         return m
 
-    def createArc(self, originalEdge, bm, mesh, matrix):
-        edge = self.scaleEdge(originalEdge, bm)
-        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
-        self.updateRadiusAndAngle(edgeLength)
+    def adjustAngle(self, angle):
+        if self.invertAngle:
+            angle = 360 - angle
+        if self.fullCircles:
+            angle = 360
+        return angle
 
+    def getFirstEdgeVertexClone(self, edge, bm):
         startVertIndex = 1
         if self.invertAngle:
             startVertIndex = 0
         v0org = edge.verts[startVertIndex]
         v0 = bm.verts.new(v0org.co)
-        steps = self.n
-        angle = self.a
-        distance = cos(radians(angle / 2)) * self.r
-        center = edgeCenter - (distance * matrix.transposed()[1])
+        return startVertIndex, v0
 
-        if self.invertAngle:
-            angle = 360 - angle
-        if self.fullCircles:
-            angle = 360
+    def getOtherEdgeVertexClone(self, startVertIndex, edge, bm):
+        if (startVertIndex == 1):
+            otherIndex = 0
+        else:
+            otherIndex = 1
+        v1org = edge.verts[otherIndex]
+        v1 = bm.verts.new(v1org.co)
+        return v1
 
-        result = bmesh.ops.spin(bm, geom=[v0], cent=center, axis=matrix.transposed()[2],
+    def drawArcAndSelect(self, v0, center, axis, angle, steps, bm, mesh):
+        result = bmesh.ops.spin(bm, geom=[v0], cent=center, axis=axis,
                                 angle=radians(angle), steps=steps, use_duplicate=False)
+        self.selectResultVerts(steps, bm, mesh)
         if (self.drawArcCenters):
             bm.verts.new(center)
-
-        if(self.bothSides):
-            center = edgeCenter + (distance * matrix.transposed()[1])
-            if (self.drawArcCenters):
-                bm.verts.new(center)
-            if (startVertIndex == 1):
-                otherIndex = 0
-            else:
-                otherIndex = 1
-            v1org = edge.verts[otherIndex]
-            v1 = bm.verts.new(v1org.co)
-            result2 = bmesh.ops.spin(bm, geom=[v1], cent=center, axis=matrix.transposed()[2],
-                                angle=radians(angle), steps=steps, use_duplicate=False)
-        
-        if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
-            bmesh.ops.delete(bm, geom=[edge], context=2)
-
-        #TODO if for including both sides
-        self.selectResultVerts(steps, bm, mesh)
-        return result
 
     def selectResultVerts(self, steps, bm, mesh):
         vertsLength = len(bm.verts)
@@ -747,13 +740,46 @@ class EdgeRoundifier(bpy.types.Operator):
                     e.select = True
         self.sel.refreshMesh(bm, mesh)
 
-    def calculateEdgeNormal(self, edge, n):
+    def createArc(self, originalEdge, bm, mesh, matrix):
+        edge = self.scaleEdge(originalEdge, bm)
+        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
+        self.updateRadiusAndAngle(edgeLength)
+
+        steps = self.n
+        angle = self.a
+        distance = cos(radians(angle / 2)) * self.r
+        center = edgeCenter - (distance * matrix.transposed()[1])
+        startVertIndex, v0 = self.getFirstEdgeVertexClone(edge, bm)
+        axis = matrix.transposed()[2]
+        angle = self.adjustAngle(angle)
+        self.drawArcAndSelect(v0, center, axis, angle, steps, bm, mesh)
+            
+        if(self.bothSides):
+            center2 = edgeCenter + (distance * matrix.transposed()[1])
+            v1 = self.getOtherEdgeVertexClone(startVertIndex, edge, bm)
+            self.drawArcAndSelect(v1, center2, axis, angle, steps, bm, mesh)
+            
+        if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
+            bmesh.ops.delete(bm, geom=[edge], context=2)
+
+    def calculateEdgeNormalWithSelectionCenter(self, edge, n, selectionCenter):
         v0 = edge.verts[0].co
         v1 = edge.verts[1].co
-        a = v1 - v0
+        a = (v1 - v0).normalized()
+        n = n.normalized()
+        s = (selectionCenter - v0).normalized()
+        test = s.cross(a).normalized()
         normal = a.cross(n)
+        check = normal.cross(a)
+        print ('CHECK: ' + str(check), 'TEST:' + str(test) )
+        
+        if (check - test).length > self.threshold:
+            print('RECALCULATE')
+            n = -n
+            print('n=' + str(n))
+            normal = a.cross(n)
         if self.flip:
-            normal = n.cross(a)
+            normal = -normal
         return normal
 
     def getEdgeNormalWithLinkFaces(self, edge, bm):
@@ -783,11 +809,11 @@ class EdgeRoundifier(bpy.types.Operator):
                     {'WARNING'}, "Edge has no faces attached. Use other plane.")
                 normal = self.getEdgeVector(edge)
         elif (self.planeEnum == 'XY'):
-            normal = self.getEdgeNormalReqVector(edge, Vector((0, 0, 1)))
+            normal = self.getEdgeNormalForAxis(edge, Vector((0, 0, -1)), bm, 'Z')
         elif (self.planeEnum == 'XZ'):
-            normal = self.getEdgeNormalReqVector(edge, Vector((0, 1, 0)))
+            normal = self.getEdgeNormalForAxis(edge, Vector((0, -1, 0)), bm, 'Y')
         elif (self.planeEnum == 'YZ'):
-            normal = self.getEdgeNormalReqVector(edge, Vector((1, 0, 0)))
+            normal = self.getEdgeNormalForAxis(edge, Vector((-1, 0, 0)), bm, 'X')
         elif (self.planeEnum == 'AlongX'):
             normal = self.getVector(Vector((1, 0, 0)))
         elif (self.planeEnum == 'AlongY'):
@@ -831,9 +857,19 @@ class EdgeRoundifier(bpy.types.Operator):
         print("getEdgeNormalBetween2Faces")
         return normal
 
+    def calculateEdgeNormal(self, edge, n):
+        v0 = edge.verts[0].co
+        v1 = edge.verts[1].co
+        a = v1 - v0
+        normal = a.cross(n)
+        if self.flip:
+            normal = -normal
+        return normal
+
     def getEdgeNormalFace(self, edge, face):
         n = face.normal
-        normal = self.calculateEdgeNormal(edge, n)
+        faceCenter = face.calc_center_median()
+        normal = self.calculateEdgeNormalWithSelectionCenter(edge, n, faceCenter)
         print("getEdgeNormalFace - Using Face Normal")
         return normal
 
@@ -843,8 +879,18 @@ class EdgeRoundifier(bpy.types.Operator):
             normal = -face.normal
         return normal
 
-    def getEdgeNormalReqVector(self, edge, vec):
-        normal = self.calculateEdgeNormal(edge, vec)
+    def getEdgeNormalForAxis(self, edge, vec, bm, axis):
+        selectionCenter = self.calculateSelectionCenter(bm.edges)
+        if axis == 'Z':
+            selectionCenter.z = edge.verts[0].co.z
+        elif axis == 'Y':
+            selectionCenter.y = edge.verts[0].co.y
+        elif axis == 'X':
+            selectionCenter.x = edge.verts[0].co.x
+
+        print("getEdgeNormalForAxis - modified vec = " + str (vec))
+        normal = self.calculateEdgeNormalWithSelectionCenter(edge, vec, selectionCenter)
+        print("getEdgeNormalForAxis - normal = " + str (normal))
         return normal
 
     def getVector(self, vec):
