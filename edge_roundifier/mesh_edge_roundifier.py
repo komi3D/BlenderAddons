@@ -49,7 +49,7 @@ LINE_TOLERANCE = 0.0001
 
 
 # variable controlling all print functions
-#PKHG>??? to be replaced, see debugPrintNew ;-)
+# PKHG>??? to be replaced, see debugPrintNew ;-)
 debug = True
 
 
@@ -250,9 +250,9 @@ class CalculationHelper:
         return (alpha, degrees(alpha))
 
     # get two of three coordinates used for further calculation of spin center
-    #PKHG>nice if rescriction to these 3 types or planes is to be done
-    #komi3D> from 0.0.2 there is a restriction. In future I would like Edge Roundifier to work on
-    #komi3D> Normal and View coordinate systems. That would be great...
+    # PKHG>nice if rescriction to these 3 types or planes is to be done
+    # komi3D> from 0.0.2 there is a restriction. In future I would like Edge Roundifier to work on
+    # komi3D> Normal and View coordinate systems. That would be great...
     def getCircleMidPointOnPlane(self, V1, plane):
         X = V1[0]
         Y = V1[1]
@@ -410,7 +410,8 @@ class EdgeRoundifier(bpy.types.Operator):
         description="Reference location used by Edge Roundifier to calculate initial centers of drawn arcs")
 
     planeItems = [('Auto', 'Auto', "Automatic"), ('Face1', 'Face1', "Face1 Plane"), ('Face2', 'Face2', "Face2 Plane"),
-                  ('View', 'View', "View Plane"), (XY, XY, "Top view plane"), (YZ, YZ, "Right view plane"), (XZ, XZ, "Front view plane"),
+                  ('View', 'View', "View Plane"), (XY, XY, "Top view plane"), 
+                  (YZ, YZ, "Right view plane"), (XZ, XZ, "Front view plane"),
                   ('AlongX', 'AlongX', 'AlongX'), ('AlongY', 'AlongY', 'AlongY'), ('AlongZ', 'AlongZ', 'AlongZ')]
     planeEnum = bpy.props.EnumProperty(
         items=planeItems,
@@ -608,9 +609,8 @@ class EdgeRoundifier(bpy.types.Operator):
         # if parameters["connectArcs"]:
         #     self.connectArcsTogether(arcs, bm, mesh, parameters)
     def processEdge(self, edge, bm, mesh, matrix):
-        # TODO Here we can handle different profiles for edge like smooth, cos, etc
+        # TODO Here we can handle different profiles for edge like smooth, cos,
         return self.createArc(edge, bm, mesh, matrix)
-
 
 
 ####################### NEW CODE ###################################
@@ -752,15 +752,107 @@ class EdgeRoundifier(bpy.types.Operator):
         startVertIndex, v0 = self.getFirstEdgeVertexClone(edge, bm)
         axis = matrix.transposed()[2]
         angle = self.adjustAngle(angle)
-        self.drawArcAndSelect(v0, center, axis, angle, steps, bm, mesh)
-            
+        result1 = self.drawArcAndSelect(v0, center, axis, angle, steps, bm, mesh)
+
+        arcVerts = self.prepareArcVerts(len(bm.verts) - 1, steps, bm )
         if(self.bothSides):
             center2 = edgeCenter + (distance * matrix.transposed()[1])
             v1 = self.getOtherEdgeVertexClone(startVertIndex, edge, bm)
             self.drawArcAndSelect(v1, center2, axis, angle, steps, bm, mesh)
-            
+            arcVerts2 = self.prepareArcVerts(len(bm.verts) - 1, steps, bm )
+            arcVerts.append(arcVerts2)# TODO this needs to be tweaked for BOTH option !!!
+
+        self.connectEdges(originalEdge, edge, arcVerts, bm, mesh)
+        
         if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
             bmesh.ops.delete(bm, geom=[edge], context=2)
+        return arcVerts
+
+    def prepareArcVerts(self, lastVertIndex, steps, bm):
+        bm.verts.ensure_lookup_table()
+        lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
+        arcVerts = [bm.verts[i] for i in lastSpinVertIndices]
+        return arcVerts
+
+    def connectEdges(self, originalEdge, edge, arcVerts, bm, mesh):
+        if self.connectArcWithEdge:
+            self.connectArcTogetherWithEdge(originalEdge, arcVerts, bm, mesh)
+        if self.connectScaledAndBase:
+            self.connectScaledEdgeWithBaseEdge(edge, originalEdge, bm, mesh)
+        
+        #TODO call subfunctions
+
+    def connectArcTogetherWithEdge(self, edge, arcVertices, bm, mesh):
+        lastVert = len(arcVertices) - 1
+        edgeV1 = edge.verts[0].co
+        edgeV2 = edge.verts[1].co
+        arcV1 = arcVertices[0].co
+        arcV2 = arcVertices[lastVert].co
+
+        bmv1 = bm.verts.new(edgeV1)
+        bmv2 = bm.verts.new(arcV1)
+
+        bmv3 = bm.verts.new(edgeV2)
+        bmv4 = bm.verts.new(arcV2)
+
+        if self.connectArcWithEdgeFlip == False:
+            bme = bm.edges.new([bmv1, bmv2])
+            bme2 = bm.edges.new([bmv3, bmv4])
+        else:
+            bme = bm.edges.new([bmv1, bmv4])
+            bme2 = bm.edges.new([bmv3, bmv2])
+        self.sel.refreshMesh(bm, mesh)
+
+    def connectScaledEdgeWithBaseEdge(self, scaledEdge, baseEdge, bm, mesh):
+        scaledEdgeV1 = scaledEdge.verts[0].co
+        baseEdgeV1 = baseEdge.verts[0].co
+        scaledEdgeV2 = scaledEdge.verts[1].co
+        baseEdgeV2 = baseEdge.verts[1].co
+
+        bmv1 = bm.verts.new(baseEdgeV1)
+        bmv2 = bm.verts.new(scaledEdgeV1)
+        bme = bm.edges.new([bmv1, bmv2])
+
+        bmv3 = bm.verts.new(scaledEdgeV2)
+        bmv4 = bm.verts.new(baseEdgeV2)
+        bme = bm.edges.new([bmv3, bmv4])
+        self.sel.refreshMesh(bm, mesh)
+
+    def connectArcsTogether(self, arcs, bm, mesh):
+        for i in range(0, len(arcs) - 1):
+            # in case on XZ or YZ there are no arcs drawn
+            if arcs[i] == None or arcs[i + 1] == None:
+                return
+            lastVert = len(arcs[i]) - 1
+
+            # take last vert of arc i and first vert of arc i+1
+            V1 = arcs[i][lastVert].co
+            V2 = arcs[i + 1][0].co
+
+            if self.connectArcsFlip:
+                V1 = arcs[i][0].co
+                V2 = arcs[i + 1][lastVert].co
+
+            bmv1 = bm.verts.new(V1)
+            bmv2 = bm.verts.new(V2)
+            bme = bm.edges.new([bmv1, bmv2])
+
+        # connect last arc and first one
+        lastArcId = len(arcs) - 1
+        lastVertIdOfLastArc = len(arcs[lastArcId]) - 1
+
+        V1 = arcs[lastArcId][lastVertIdOfLastArc].co
+        V2 = arcs[0][0].co
+        if parameters["connectArcsFlip"]:
+            V1 = arcs[lastArcId][0].co
+            V2 = arcs[0][lastVertIdOfLastArc].co
+
+        bmv1 = bm.verts.new(V1)
+        bmv2 = bm.verts.new(V2)
+        bme = bm.edges.new([bmv1, bmv2])
+
+        self.sel.refreshMesh(bm, mesh)
+
 
     def calculateEdgeNormalWithSelectionCenter(self, edge, n, selectionCenter):
         v0 = edge.verts[0].co
@@ -771,8 +863,8 @@ class EdgeRoundifier(bpy.types.Operator):
         test = s.cross(a).normalized()
         normal = a.cross(n)
         check = normal.cross(a)
-        print ('CHECK: ' + str(check), 'TEST:' + str(test) )
-        
+        print('CHECK: ' + str(check), 'TEST:' + str(test))
+
         if (check - test).length > self.threshold:
             print('RECALCULATE')
             n = -n
@@ -809,11 +901,14 @@ class EdgeRoundifier(bpy.types.Operator):
                     {'WARNING'}, "Edge has no faces attached. Use other plane.")
                 normal = self.getEdgeVector(edge)
         elif (self.planeEnum == 'XY'):
-            normal = self.getEdgeNormalForAxis(edge, Vector((0, 0, -1)), bm, 'Z')
+            normal = self.getEdgeNormalForAxis(
+                edge, Vector((0, 0, -1)), bm, 'Z')
         elif (self.planeEnum == 'XZ'):
-            normal = self.getEdgeNormalForAxis(edge, Vector((0, -1, 0)), bm, 'Y')
+            normal = self.getEdgeNormalForAxis(
+                edge, Vector((0, -1, 0)), bm, 'Y')
         elif (self.planeEnum == 'YZ'):
-            normal = self.getEdgeNormalForAxis(edge, Vector((-1, 0, 0)), bm, 'X')
+            normal = self.getEdgeNormalForAxis(
+                edge, Vector((-1, 0, 0)), bm, 'X')
         elif (self.planeEnum == 'AlongX'):
             normal = self.getVector(Vector((1, 0, 0)))
         elif (self.planeEnum == 'AlongY'):
@@ -831,7 +926,7 @@ class EdgeRoundifier(bpy.types.Operator):
     def getEdgeNormalAuto(self, edge, facesWithEdge, lenFacesWithEdge):
         normal = Vector((0, 0, 1))
         if lenFacesWithEdge == 2:
-           normal = self.getEdgeNormalBetween2Faces(edge, facesWithEdge)
+            normal = self.getEdgeNormalBetween2Faces(edge, facesWithEdge)
         elif lenFacesWithEdge == 1:
             normal = self.getFaceNormal(facesWithEdge[0])
         else:
@@ -869,7 +964,8 @@ class EdgeRoundifier(bpy.types.Operator):
     def getEdgeNormalFace(self, edge, face):
         n = face.normal
         faceCenter = face.calc_center_median()
-        normal = self.calculateEdgeNormalWithSelectionCenter(edge, n, faceCenter)
+        normal = self.calculateEdgeNormalWithSelectionCenter(
+            edge, n, faceCenter)
         print("getEdgeNormalFace - Using Face Normal")
         return normal
 
@@ -888,9 +984,10 @@ class EdgeRoundifier(bpy.types.Operator):
         elif axis == 'X':
             selectionCenter.x = edge.verts[0].co.x
 
-        print("getEdgeNormalForAxis - modified vec = " + str (vec))
-        normal = self.calculateEdgeNormalWithSelectionCenter(edge, vec, selectionCenter)
-        print("getEdgeNormalForAxis - normal = " + str (normal))
+        print("getEdgeNormalForAxis - modified vec = " + str(vec))
+        normal = self.calculateEdgeNormalWithSelectionCenter(
+            edge, vec, selectionCenter)
+        print("getEdgeNormalForAxis - normal = " + str(normal))
         return normal
 
     def getVector(self, vec):
@@ -992,7 +1089,7 @@ class EdgeRoundifier(bpy.types.Operator):
         for ele in arcVerts:
             ele.co = a_mat * ele.co
 
-        #PKHG>INFO move back if needed
+        # PKHG>INFO move back if needed
         if v0_old != Vector((0, 0, 0)):
             for i, ele in enumerate(arcVerts):
                 arcVerts[i].co += + v0_old
@@ -1013,7 +1110,7 @@ class EdgeRoundifier(bpy.types.Operator):
             v1co = arcVertices[lastVert].co
 
             for vertex in arcVertices:  # range(len(res_list)):
-                #PKHg>INFO compute the base on the edge  of the height-vector
+                # PKHg>INFO compute the base on the edge  of the height-vector
                 top = vertex.co  # res_list[nr].co
                 t = 0
                 if v1co - v0co != 0:
@@ -1051,86 +1148,10 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if parameters["connectArcWithEdge"]:
             self.connectArcTogetherWithEdge(
-                edge, offsetVerts2, bm, mesh, parameters)
+                edge, offsetVerts2, bm, mesh)
         return offsetVerts2
 
-    def connectArcTogetherWithEdge(self, edge, arcVertices, bm, mesh, parameters):
-        lastVert = len(arcVertices) - 1
-        if parameters["drawArcCenters"]:
-            lastVert = lastVert - 1  # center gets added as last vert of arc
-        edgeV1 = edge.verts[0].co
-        edgeV2 = edge.verts[1].co
-        arcV1 = arcVertices[0].co
-        arcV2 = arcVertices[lastVert].co
-
-        bmv1 = bm.verts.new(edgeV1)
-        bmv2 = bm.verts.new(arcV1)
-
-        bmv3 = bm.verts.new(edgeV2)
-        bmv4 = bm.verts.new(arcV2)
-
-        if parameters["connectArcWithEdgeFlip"] == False:
-            bme = bm.edges.new([bmv1, bmv2])
-            bme2 = bm.edges.new([bmv3, bmv4])
-        else:
-            bme = bm.edges.new([bmv1, bmv4])
-            bme2 = bm.edges.new([bmv3, bmv2])
-        self.sel.refreshMesh(bm, mesh)
-
-    def connectScaledEdgesWithBaseEdge(self, scaledEdges, baseEdges, bm, mesh):
-        for i in range(0, len(scaledEdges)):
-            scaledEdgeV1 = scaledEdges[i].verts[0].co
-            baseEdgeV1 = baseEdges[i].verts[0].co
-            scaledEdgeV2 = scaledEdges[i].verts[1].co
-            baseEdgeV2 = baseEdges[i].verts[1].co
-
-            bmv1 = bm.verts.new(baseEdgeV1)
-            bmv2 = bm.verts.new(scaledEdgeV1)
-            bme = bm.edges.new([bmv1, bmv2])
-
-            bmv3 = bm.verts.new(scaledEdgeV2)
-            bmv4 = bm.verts.new(baseEdgeV2)
-            bme = bm.edges.new([bmv3, bmv4])
-        self.sel.refreshMesh(bm, mesh)
-
-    def connectArcsTogether(self, arcs, bm, mesh, parameters):
-        for i in range(0, len(arcs) - 1):
-            # in case on XZ or YZ there are no arcs drawn
-            if arcs[i] == None or arcs[i + 1] == None:
-                return
-            lastVert = len(arcs[i]) - 1
-            if parameters["drawArcCenters"]:
-                lastVert = lastVert - 1  # center gets added as last vert of arc
-
-            #take last vert of arc i and first vert of arc i+1
-            V1 = arcs[i][lastVert].co
-            V2 = arcs[i + 1][0].co
-
-            if parameters["connectArcsFlip"]:
-                V1 = arcs[i][0].co
-                V2 = arcs[i + 1][lastVert].co
-
-            bmv1 = bm.verts.new(V1)
-            bmv2 = bm.verts.new(V2)
-            bme = bm.edges.new([bmv1, bmv2])
-
-        #connect last arc and first one
-        lastArcId = len(arcs) - 1
-        lastVertIdOfLastArc = len(arcs[lastArcId]) - 1
-        if parameters["drawArcCenters"]:
-                lastVertIdOfLastArc = lastVertIdOfLastArc - \
-                    1  # center gets added as last vert of arc
-        V1 = arcs[lastArcId][lastVertIdOfLastArc].co
-        V2 = arcs[0][0].co
-        if parameters["connectArcsFlip"]:
-                V1 = arcs[lastArcId][0].co
-                V2 = arcs[0][lastVertIdOfLastArc].co
-
-        bmv1 = bm.verts.new(V1)
-        bmv2 = bm.verts.new(V2)
-        bme = bm.edges.new([bmv1, bmv2])
-
-        self.sel.refreshMesh(bm, mesh)
+    
 
     def offsetArcPerpendicular(self, bm, mesh, Verts, edge, parameters):
         perpendicularVector = self.getEdgePerpendicularVector(
@@ -1336,7 +1357,7 @@ class EdgeRoundifier(bpy.types.Operator):
                 spinVertices = [v0] + spinVertices
 
         if (parameters["bothSides"]):
-                #do some more testing here!!!
+                # do some more testing here!!!
             if (angle == pi or angle == -pi):
                 alternativeLastSpinVertIndices = self.alternateSpinNoDelete(
                     bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
@@ -1427,7 +1448,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         axisAngle = parameters["axisAngle"]
         plane = parameters["plane"]
-        #compensate rotation center
+        # compensate rotation center
         objectLocation = bpy.context.active_object.location
         #center = objectLocation + chosenSpinCenter
         center = objectLocation + edgeCenter
@@ -1467,7 +1488,7 @@ class EdgeRoundifier(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='EDIT')
 
     def getLastSpinVertIndices(self, steps, lastVertIndex):
-        arcfirstVertexIndex = lastVertIndex - steps #+ 1
+        arcfirstVertexIndex = lastVertIndex - steps  # + 1
         lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
         return lastSpinVertIndices
 
