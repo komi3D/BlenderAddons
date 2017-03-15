@@ -606,8 +606,9 @@ class EdgeRoundifier(bpy.types.Operator):
             arcVerts = self.processEdge(e, bm, mesh, matrix)
             arcs.append(arcVerts)
 
-        # if parameters["connectArcs"]:
-        #     self.connectArcsTogether(arcs, bm, mesh, parameters)
+        if self.connectArcs:
+            self.connectArcsTogether(arcs, bm, mesh)
+
     def processEdge(self, edge, bm, mesh, matrix):
         # TODO Here we can handle different profiles for edge like smooth, cos,
         return self.createArc(edge, bm, mesh, matrix)
@@ -755,18 +756,22 @@ class EdgeRoundifier(bpy.types.Operator):
         result1 = self.drawArcAndSelect(v0, center, axis, angle, steps, bm, mesh)
 
         arcVerts = self.prepareArcVerts(len(bm.verts) - 1, steps, bm )
+        startVert = arcVerts[0]
+        endVert = arcVerts[len(arcVerts) - 1]
         if(self.bothSides):
             center2 = edgeCenter + (distance * matrix.transposed()[1])
             v1 = self.getOtherEdgeVertexClone(startVertIndex, edge, bm)
             self.drawArcAndSelect(v1, center2, axis, angle, steps, bm, mesh)
             arcVerts2 = self.prepareArcVerts(len(bm.verts) - 1, steps, bm )
             arcVerts.append(arcVerts2)# TODO this needs to be tweaked for BOTH option !!!
+            for el in arcVerts2:
+                arcVerts.append(el)
 
         self.connectEdges(originalEdge, edge, arcVerts, bm, mesh)
         
         if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
             bmesh.ops.delete(bm, geom=[edge], context=2)
-        return arcVerts
+        return {'start': startVert, 'end': endVert, 'verts': arcVerts}
 
     def prepareArcVerts(self, lastVertIndex, steps, bm):
         bm.verts.ensure_lookup_table()
@@ -823,15 +828,15 @@ class EdgeRoundifier(bpy.types.Operator):
             # in case on XZ or YZ there are no arcs drawn
             if arcs[i] == None or arcs[i + 1] == None:
                 return
-            lastVert = len(arcs[i]) - 1
+            # {'start': startVert, 'end': endVert, 'verts': arcVerts}
 
             # take last vert of arc i and first vert of arc i+1
-            V1 = arcs[i][lastVert].co
-            V2 = arcs[i + 1][0].co
+            V1 = arcs[i]['end'].co
+            V2 = arcs[i + 1]['start'].co
 
             if self.connectArcsFlip:
-                V1 = arcs[i][0].co
-                V2 = arcs[i + 1][lastVert].co
+                V1 = arcs[i]['start'].co
+                V2 = arcs[i + 1]['end'].co
 
             bmv1 = bm.verts.new(V1)
             bmv2 = bm.verts.new(V2)
@@ -839,18 +844,15 @@ class EdgeRoundifier(bpy.types.Operator):
 
         # connect last arc and first one
         lastArcId = len(arcs) - 1
-        lastVertIdOfLastArc = len(arcs[lastArcId]) - 1
-
-        V1 = arcs[lastArcId][lastVertIdOfLastArc].co
-        V2 = arcs[0][0].co
-        if parameters["connectArcsFlip"]:
-            V1 = arcs[lastArcId][0].co
-            V2 = arcs[0][lastVertIdOfLastArc].co
+        V1 = arcs[lastArcId]['end'].co
+        V2 = arcs[0]['start'].co
+        if self.connectArcsFlip:
+            V1 = arcs[lastArcId]['start'].co
+            V2 = arcs[0]['end'].co
 
         bmv1 = bm.verts.new(V1)
         bmv2 = bm.verts.new(V2)
         bme = bm.edges.new([bmv1, bmv2])
-
         self.sel.refreshMesh(bm, mesh)
 
 
@@ -902,13 +904,13 @@ class EdgeRoundifier(bpy.types.Operator):
                 normal = self.getEdgeVector(edge)
         elif (self.planeEnum == 'XY'):
             normal = self.getEdgeNormalForAxis(
-                edge, Vector((0, 0, -1)), bm, 'Z')
+                edge, Vector((0, 0, 1)), bm, 'Z')
         elif (self.planeEnum == 'XZ'):
             normal = self.getEdgeNormalForAxis(
-                edge, Vector((0, -1, 0)), bm, 'Y')
+                edge, Vector((0, 1, 0)), bm, 'Y')
         elif (self.planeEnum == 'YZ'):
             normal = self.getEdgeNormalForAxis(
-                edge, Vector((-1, 0, 0)), bm, 'X')
+                edge, Vector((1, 0, 0)), bm, 'X')
         elif (self.planeEnum == 'AlongX'):
             normal = self.getVector(Vector((1, 0, 0)))
         elif (self.planeEnum == 'AlongY'):
