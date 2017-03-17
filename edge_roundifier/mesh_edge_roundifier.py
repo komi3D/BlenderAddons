@@ -609,6 +609,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if self.connectArcs:
             self.connectArcsTogether(arcs, bm, mesh)
+        self.arcPostprocessing
 
     def processEdge(self, edge, bm, mesh, matrix):
         # TODO Here we can handle different profiles for edge like smooth, cos,
@@ -873,56 +874,35 @@ class EdgeRoundifier(bpy.types.Operator):
             n = -n
             print('n=' + str(n))
             normal = a.cross(n)
+        normal = -normal # this is to make arcs outside
         if self.flip:
             normal = -normal
         return normal
 
-    def getSelectedFace(self, facesWithEdge):
+    def getSelectedFace(self, facesWithEdge, lenFacesWithEdge):
         selectedFace = None
-        if (facesWithEdge[0].select):
+        if (lenFacesWithEdge >= 1 and facesWithEdge[0].select):
             selectedFace = facesWithEdge[0]
-        elif(facesWithEdge[1]):
+        elif(lenFacesWithEdge > 1 and facesWithEdge[1].select):
             selectedFace = facesWithEdge[1]
         return selectedFace
 
     def getEdgeNormalWithLinkFaces(self, edge, bm):
-        normal = Vector((0, 0, 1))
+        normal = self.getEdgeVector(edge)
         facesWithEdge = edge.link_faces
         lenFacesWithEdge = len(facesWithEdge)
         if (self.planeEnum == 'Auto'):
-            normal = self.getEdgeNormalAuto(
-                edge, facesWithEdge, lenFacesWithEdge)
+            normal = self.getEdgeNormalAuto(edge, facesWithEdge, lenFacesWithEdge)
         elif (self.planeEnum == 'Ortho'):
-            normal = self.getEdgeNormalOrtho(
-                edge, facesWithEdge, lenFacesWithEdge)
+            normal = self.getEdgeNormalOrtho(edge, facesWithEdge, lenFacesWithEdge)
         elif (self.planeEnum == 'View'):
             normal = self.getEdgeNormalView(edge)
         elif (self.planeEnum == 'Selected face'):
-            if (lenFacesWithEdge >= 1):
-                selectedFace = self.getSelectedFace(facesWithEdge)
-                if selectedFace != None:
-                    normal = self.getEdgeNormalFace(edge, selectedFace)
-                else:
-                    self.report({'WARNING'}, "No faces selected. Use other plane.")
-            else:
-                self.report({'WARNING'}, "No faces selected. Use other plane.")
+            normal = self.getEdgeNormalSelectedFace(edge, facesWithEdge, lenFacesWithEdge)
         elif (self.planeEnum == 'Face1'):
-            if (lenFacesWithEdge >= 1):
-                normal = self.getEdgeNormalFace(edge, facesWithEdge[0])
-            else:
-                self.report(
-                    {'WARNING'}, "Edge has no faces attached. Use other plane.")
+            normal = self.getEdgeNormalFace1(edge, facesWithEdge, lenFacesWithEdge)
         elif (self.planeEnum == 'Face2'):
-            if (lenFacesWithEdge > 1):
-                normal = self.getEdgeNormalFace(edge, facesWithEdge[1])
-            elif (lenFacesWithEdge == 1):
-                self.report(
-                    {'WARNING'}, "Edge has only 1 face attached. Use other face plane.")
-                normal = self.getEdgeVector(edge)
-            else:
-                self.report(
-                    {'WARNING'}, "Edge has no faces attached. Use other plane.")
-                normal = self.getEdgeVector(edge)
+            normal = self.getEdgeNormalFace2(edge, facesWithEdge, lenFacesWithEdge)
         elif (self.planeEnum == 'XY'):
             normal = self.getEdgeNormalForAxis(
                 edge, Vector((0, 0, 1)), bm, 'Z')
@@ -947,7 +927,7 @@ class EdgeRoundifier(bpy.types.Operator):
         return edgeVector
 
     def getEdgeNormalAuto(self, edge, facesWithEdge, lenFacesWithEdge):
-        normal = Vector((0, 0, 1))
+        normal = self.getEdgeVector(edge)
         if lenFacesWithEdge == 2:
             normal = self.getEdgeNormalBetween2Faces(edge, facesWithEdge)
         elif lenFacesWithEdge == 1:
@@ -957,7 +937,7 @@ class EdgeRoundifier(bpy.types.Operator):
         return normal
 
     def getEdgeNormalOrtho(self, edge, facesWithEdge, lenFacesWithEdge):
-        normal = Vector((0, 0, 1))
+        normal = self.getEdgeVector(edge)
         if lenFacesWithEdge == 2:
             normal = self.getEdgeNormalBetween2Faces(edge, facesWithEdge)
         elif lenFacesWithEdge == 1:
@@ -967,7 +947,7 @@ class EdgeRoundifier(bpy.types.Operator):
         return normal
 
     def getEdgeNormalView(self, edge):  # OK
-        normal = Vector((0, 0, 1))
+        normal = self.getEdgeVector(edge)
         viewMatrix = self.getViewMatrix()
         print('viewMatrix = ' + str(viewMatrix))
         if viewMatrix != None:
@@ -1006,6 +986,39 @@ class EdgeRoundifier(bpy.types.Operator):
         normal = face.normal
         if self.flip:
             normal = -face.normal
+        return normal
+
+    def getEdgeNormalSelectedFace(self, edge, facesWithEdge, lenFacesWithEdge):
+        normal = self.getEdgeVector(edge)
+        if (lenFacesWithEdge >= 1):
+            selectedFace = self.getSelectedFace(facesWithEdge, lenFacesWithEdge)
+            if selectedFace != None:
+                normal = self.getEdgeNormalFace(edge, selectedFace)
+            else:
+                self.report({'WARNING'}, "No faces selected. Use other plane.")
+        else:
+            self.report({'WARNING'}, "No faces selected. Use other plane.")
+        return normal
+
+    def getEdgeNormalFace1(self, edge, facesWithEdge, lenFacesWithEdge):
+        normal = self.getEdgeVector(edge)
+        if (lenFacesWithEdge >= 1):
+            normal = self.getEdgeNormalFace(edge, facesWithEdge[0])
+        else:
+            self.report(
+                {'WARNING'}, "Edge has no faces attached. Use other plane.")
+        return normal
+
+    def getEdgeNormalFace2(self, edge, facesWithEdge, lenFacesWithEdge):
+        normal = self.getEdgeVector(edge)
+        if (lenFacesWithEdge > 1):
+            normal = self.getEdgeNormalFace(edge, facesWithEdge[1])
+        elif (lenFacesWithEdge == 1):
+            self.report(
+                {'WARNING'}, "Edge has only 1 face attached. Use other face plane.")
+        else:
+            self.report(
+                {'WARNING'}, "Edge has no faces attached. Use other plane.")
         return normal
 
     def getEdgeNormalForAxis(self, edge, vec, bm, axis):
