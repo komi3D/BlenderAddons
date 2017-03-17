@@ -409,7 +409,8 @@ class EdgeRoundifier(bpy.types.Operator):
         default='ORG',
         description="Reference location used by Edge Roundifier to calculate initial centers of drawn arcs")
 
-    planeItems = [('Auto', 'Auto', "Automatic"), ('Face1', 'Face1', "Face1 Plane"), ('Face2', 'Face2', "Face2 Plane"),
+    planeItems = [('Auto', 'Auto', "Automatic"), ('Ortho', 'Ortho','Orthogonal'), ('Selected face', 'Selected face', "Selected face plane"), 
+                  ('Face1', 'Face1', "Face1 Plane"), ('Face2', 'Face2', "Face2 Plane"),
                   ('View', 'View', "View Plane"), (XY, XY, "Top view plane"), 
                   (YZ, YZ, "Right view plane"), (XZ, XZ, "Front view plane"),
                   ('AlongX', 'AlongX', 'AlongX'), ('AlongY', 'AlongY', 'AlongY'), ('AlongZ', 'AlongZ', 'AlongZ')]
@@ -484,7 +485,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
         box = layout.box()
         self.addParameterToUI(box, False, uiPercentage,
-                              'Orhto offset:', 'offset')
+                              'Ortho offset:', 'offset')
         self.addParameterToUI(box, False, uiPercentage,
                               'Parallel offset:', 'offset2')
 
@@ -876,6 +877,14 @@ class EdgeRoundifier(bpy.types.Operator):
             normal = -normal
         return normal
 
+    def getSelectedFace(self, facesWithEdge):
+        selectedFace = None
+        if (facesWithEdge[0].select):
+            selectedFace = facesWithEdge[0]
+        elif(facesWithEdge[1]):
+            selectedFace = facesWithEdge[1]
+        return selectedFace
+
     def getEdgeNormalWithLinkFaces(self, edge, bm):
         normal = Vector((0, 0, 1))
         facesWithEdge = edge.link_faces
@@ -883,8 +892,20 @@ class EdgeRoundifier(bpy.types.Operator):
         if (self.planeEnum == 'Auto'):
             normal = self.getEdgeNormalAuto(
                 edge, facesWithEdge, lenFacesWithEdge)
+        elif (self.planeEnum == 'Ortho'):
+            normal = self.getEdgeNormalOrtho(
+                edge, facesWithEdge, lenFacesWithEdge)
         elif (self.planeEnum == 'View'):
             normal = self.getEdgeNormalView(edge)
+        elif (self.planeEnum == 'Selected face'):
+            if (lenFacesWithEdge >= 1):
+                selectedFace = self.getSelectedFace(facesWithEdge)
+                if selectedFace != None:
+                    normal = self.getEdgeNormalFace(edge, selectedFace)
+                else:
+                    self.report({'WARNING'}, "No faces selected. Use other plane.")
+            else:
+                self.report({'WARNING'}, "No faces selected. Use other plane.")
         elif (self.planeEnum == 'Face1'):
             if (lenFacesWithEdge >= 1):
                 normal = self.getEdgeNormalFace(edge, facesWithEdge[0])
@@ -926,6 +947,16 @@ class EdgeRoundifier(bpy.types.Operator):
         return edgeVector
 
     def getEdgeNormalAuto(self, edge, facesWithEdge, lenFacesWithEdge):
+        normal = Vector((0, 0, 1))
+        if lenFacesWithEdge == 2:
+            normal = self.getEdgeNormalBetween2Faces(edge, facesWithEdge)
+        elif lenFacesWithEdge == 1:
+            normal = self.calculateEdgeNormal(edge, facesWithEdge[0].normal)
+        else:
+            normal = self.getEdgeNormalView(edge)
+        return normal
+
+    def getEdgeNormalOrtho(self, edge, facesWithEdge, lenFacesWithEdge):
         normal = Vector((0, 0, 1))
         if lenFacesWithEdge == 2:
             normal = self.getEdgeNormalBetween2Faces(edge, facesWithEdge)
