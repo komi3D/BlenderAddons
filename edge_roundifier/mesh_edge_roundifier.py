@@ -605,11 +605,12 @@ class EdgeRoundifier(bpy.types.Operator):
             print('=======================================')
             matrix = self.creteTransformOrientation(e, bm, mesh)
             arcVerts = self.processEdge(e, bm, mesh, matrix)
+            self.transformArc(arcVerts, bm, mesh)
             arcs.append(arcVerts)
 
         if self.connectArcs:
             self.connectArcsTogether(arcs, bm, mesh)
-        self.arcPostprocessing
+        #self.arcPostprocessing
 
     def processEdge(self, edge, bm, mesh, matrix):
         # TODO Here we can handle different profiles for edge like smooth, cos,
@@ -617,6 +618,33 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
 ####################### NEW CODE ###################################
+    def getAxisRotationCenter(self, arcVerts):
+        if self.rotateCenter == 'V1':
+            return arcVerts['start'].co 
+        elif self.rotateCenter == 'V2':
+            return arcVerts['end'].co
+        elif self.rotateCenter == 'Spin':
+            return arcVerts['center']
+        elif self.rotateCenter == 'Edge':
+            return ( arcVerts['start'].co + arcVerts['end'].co ) / 2
+            
+
+    def transformArc(self, arcVerts, bm, mesh):
+        mat = arcVerts['matrix']
+        verts = arcVerts['verts']
+        center = ( arcVerts['start'].co + arcVerts['end'].co ) / 2
+        # edgeRotate
+        edgeAxis = mat.transposed()[0]
+        a_mat = Quaternion(edgeAxis, radians(self.edgeAngle)).normalized().to_matrix()
+        bmesh.ops.rotate(bm, cent=center, matrix=a_mat, verts=verts)
+        # self.sel.refreshMesh(bm, mesh)
+        # axisRotate
+        center = self.getAxisRotationCenter(arcVerts)
+        axis = mat.transposed()[2]
+        b_mat = Quaternion(axis, radians(self.axisAngle)).normalized().to_matrix()
+        bmesh.ops.rotate(bm, cent=center, matrix=b_mat, verts=verts)
+        self.sel.refreshMesh(bm, mesh)
+
     def calculateSelectionCenter(self, edges):
         selectionCenter = Vector((0, 0, 0))
         for e in edges:
@@ -758,8 +786,8 @@ class EdgeRoundifier(bpy.types.Operator):
         result1 = self.drawArcAndSelect(v0, center, axis, angle, steps, bm, mesh)
 
         arcVerts = self.prepareArcVerts(len(bm.verts) - 1, steps, bm )
-        startVert = arcVerts[0]
-        endVert = arcVerts[len(arcVerts) - 1]
+        endVert = arcVerts[0]
+        startVert = arcVerts[len(arcVerts) - 1]
         if(self.bothSides):
             center2 = edgeCenter + (distance * matrix.transposed()[1])
             v1 = self.getOtherEdgeVertexClone(startVertIndex, edge, bm)
@@ -773,7 +801,7 @@ class EdgeRoundifier(bpy.types.Operator):
         
         if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
             bmesh.ops.delete(bm, geom=[edge], context=2)
-        return {'start': startVert, 'end': endVert, 'verts': arcVerts}
+        return {'start': startVert, 'end': endVert, 'verts': arcVerts, 'matrix': matrix, 'center': center}
 
     def prepareArcVerts(self, lastVertIndex, steps, bm):
         bm.verts.ensure_lookup_table()
