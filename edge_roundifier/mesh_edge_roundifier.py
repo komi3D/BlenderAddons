@@ -374,7 +374,8 @@ class EdgeRoundifier(bpy.types.Operator):
         description="Edge Roundifier entry mode")
 
     rotateCenterItems = [("Spin", "Spin", ""), ("V1", "V1", ""),
-                         ("Edge", "Edge", ""), ("V2", "V2", "")]
+                         ("Edge", "Edge", ""), ("V2", "V2", ""),
+                         ('Cursor', 'Cursor', 'Closest to 3d cursor')]
     rotateCenter = bpy.props.EnumProperty(
         items=rotateCenterItems,
         name='',
@@ -421,7 +422,7 @@ class EdgeRoundifier(bpy.types.Operator):
         description="Plane used by Edge Roundifier to calculate spin plane of drawn arcs")
 
     edgeScaleCenterItems = [
-        ('V1', "V1", "v1"), ('CENTER', "Center", "cent"), ('V2', "V2", "v2")]
+        ('V1', "V1", "v1"), ('CENTER', "Center", "cent"), ('V2', "V2", "v2"), ('Cursor', "Cursor", "Closest to 3d cursor")]
     edgeScaleCenterEnum = bpy.props.EnumProperty(
         items=edgeScaleCenterItems,
         name='edge scale center',
@@ -627,6 +628,8 @@ class EdgeRoundifier(bpy.types.Operator):
             return arcVerts['center']
         elif self.rotateCenter == 'Edge':
             return ( arcVerts['start'].co + arcVerts['end'].co ) / 2
+        elif self.rotateCenter == 'Cursor':
+            return self.getVertClosestToCursor(arcVerts['start'].co, arcVerts['end'].co)
             
 
     def transformArc(self, arcVerts, bm, mesh):
@@ -654,6 +657,15 @@ class EdgeRoundifier(bpy.types.Operator):
         print('CENTER = ' + str(selectionCenter))
         return selectionCenter
 
+    def getVertClosestToCursor(self, v1, v2):
+        cursor = bpy.context.scene.cursor_location
+        vec1 = v1 - cursor
+        vec2 = v2 - cursor
+        if vec1.length <= vec2.length:
+            return v1
+        else:
+            return v2
+
     def scaleEdge(self, edge, bm):
         scaleCenter = self.edgeScaleCenterEnum
         factor = self.edgeScaleFactor
@@ -669,6 +681,8 @@ class EdgeRoundifier(bpy.types.Operator):
             origin = v1
         elif scaleCenter == 'V2':
             origin = v2
+        elif scaleCenter == 'Cursor':
+            origin = self.getVertClosestToCursor(v1, v2)
 
         bmv1 = bm.verts.new(((v1 - origin) * factor) + origin)
         bmv2 = bm.verts.new(((v2 - origin) * factor) + origin)
