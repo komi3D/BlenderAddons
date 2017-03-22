@@ -321,6 +321,8 @@ class EdgeRoundifier(bpy.types.Operator):
     calc = CalculationHelper()
     sel = SelectionHelper()
 
+    index = 0
+
     edgeScaleFactor = bpy.props.FloatProperty(
         name='', default=1.0, min=0.00001, max=100000.0, step=0.5, precision=5)
     r = bpy.props.FloatProperty(
@@ -381,6 +383,14 @@ class EdgeRoundifier(bpy.types.Operator):
         name='',
         default='Edge',
         description="Rotate center for spin axis rotate")
+
+    firstVertStrategyItems = [("V1", "V1", "First vertex of edge"),("V2", "V2", "Second vertex of edge"),
+                         ('Cursor', 'Cursor', "Closest to 3d cursor")]
+    firstVertStrategy = bpy.props.EnumProperty(
+        items=firstVertStrategyItems,
+        name='',
+        default='V1',
+        description="Strategy for choosing first vertex")
 
     arcModeItems = [("FullEdgeArc", "Full", "Full"),
                     ('HalfEdgeArc', "Half", "Half")]
@@ -449,6 +459,8 @@ class EdgeRoundifier(bpy.types.Operator):
             box, False, uiPercentage, 'Mode:', 'workMode')
         self.addEnumParameterToUI(
             box, False, uiPercentage, 'Plane:', 'planeEnum', False)
+        self.addEnumParameterToUI(
+            box, False, uiPercentage, 'Strategy:', 'firstVertStrategy', False)
 
         box = layout.box()
         self.addEnumParameterToUI(
@@ -602,6 +614,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def roundifyEdges(self, edges, bm, mesh):
         arcs = []
+        self.index = 0
         for e in edges:
             print('=======================================')
             matrix = self.creteTransformOrientation(e, bm, mesh)
@@ -648,6 +661,44 @@ class EdgeRoundifier(bpy.types.Operator):
         bmesh.ops.rotate(bm, cent=center, matrix=b_mat, verts=verts)
         self.sel.refreshMesh(bm, mesh)
 
+# TODO: rework offsetArcPerpendicular and parallel
+    def offsetArcPerpendicular(self, bm, mesh, Verts, edge, parameters):
+        perpendicularVector = self.getEdgePerpendicularVector(
+            edge, parameters["plane"])
+        offset = parameters["offset"]
+        translation = offset * perpendicularVector
+
+        try:
+            bmesh.ops.translate(
+                bm,
+                verts=Verts,
+                vec=translation)
+        except ValueError:
+            print("[Edge Roundifier]: Perpendicular translate value error - multiple vertices in list - try unchecking 'Centers'")
+
+        indexes = [v.index for v in Verts]
+        self.sel.refreshMesh(bm, mesh)
+        offsetVertices = [bm.verts[i] for i in indexes]
+        return offsetVertices
+
+    def offsetArcParallel(self, bm, mesh, Verts, edge, parameters):
+        edgeVector = self.getNormalizedEdgeVector(edge)
+        offset = parameters["offset2"]
+        translation = offset * edgeVector
+
+        try:
+            bmesh.ops.translate(
+                bm,
+                verts=Verts,
+                vec=translation)
+        except ValueError:
+            print("[Edge Roundifier]: Parallel translate value error - multiple vertices in list - try unchecking 'Centers'")
+
+        indexes = [v.index for v in Verts]
+        self.sel.refreshMesh(bm, mesh)
+        offsetVertices = [bm.verts[i] for i in indexes]
+        return offsetVertices
+
     def calculateSelectionCenter(self, edges):
         selectionCenter = Vector((0, 0, 0))
         for e in edges:
@@ -658,13 +709,28 @@ class EdgeRoundifier(bpy.types.Operator):
         return selectionCenter
 
     def getVertClosestToCursor(self, v1, v2):
-        cursor = bpy.context.scene.cursor_location
-        vec1 = v1 - cursor
-        vec2 = v2 - cursor
+        cursorGlobalLoc = bpy.context.scene.cursor_location
+        objectGlobalLoc = bpy.context.active_object.location  # Origin Location
+        cursorLocalLoc = cursorGlobalLoc - objectGlobalLoc
+        vec1 = v1 - cursorLocalLoc
+        vec2 = v2 - cursorLocalLoc
         if vec1.length <= vec2.length:
             return v1
         else:
             return v2
+
+    def getVertIndexClosestToCursor(self, edge):
+        cursorGlobalLoc = bpy.context.scene.cursor_location
+        objectGlobalLoc = bpy.context.active_object.location  # Origin Location
+        cursorLocalLoc = cursorGlobalLoc - objectGlobalLoc
+        v1 = edge.verts[0].co
+        v2 = edge.verts[1].co
+        vec1 = v1 - cursorLocalLoc
+        vec2 = v2 - cursorLocalLoc
+        if vec1.length <= vec2.length:
+            return 0
+        else:
+            return 1
 
     def scaleEdge(self, edge, bm):
         scaleCenter = self.edgeScaleCenterEnum
@@ -688,9 +754,26 @@ class EdgeRoundifier(bpy.types.Operator):
         bmv2 = bm.verts.new(((v2 - origin) * factor) + origin)
         return bm.edges.new([bmv1, bmv2])
 
+    def getEdgeVertices(self, edge):
+        firstIndex = None
+        if self.firstVertStrategy == 'V1':
+            firstIndex = 0
+        elif self.firstVertStrategy == 'V2':
+            firstIndex = 1
+        elif self.firstVertStrategy == 'Cursor':
+            firstIndex = self.getVertIndexClosestToCursor(edge)
+        else:
+            firstIndex = 0
+
+        otherIndex = self.getOtherIndex(firstIndex)
+        v1 = edge.verts[firstIndex].co
+        v2 = edge.verts[otherIndex].co
+        return v1, v2
+
     def creteTransformOrientation(self, e, bm, mesh):
         matrix = self.makeMatrixFromEdge(e, bm)
-        self.newTransformOrientation(matrix, 'EdgeRoundifier')
+        self.newTransformOrientation(matrix, 'EdgeRoundifier' + str(self.index))
+        self.index += 1
         return matrix
 
     def newTransformOrientation(self, mat, orientationName):
@@ -714,8 +797,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def makeMatrixFromEdge(self, edge, bm):
         edgeNormal = self.getEdgeNormalWithLinkFaces(edge, bm)
-        v1 = edge.verts[0].co
-        v2 = edge.verts[1].co
+        v1, v2 = self.getEdgeVertices(edge)
         v3 = v1 + edgeNormal
         mat = self.makeMatrixFromVerts(v1, v2, v3)
         return mat
@@ -747,18 +829,31 @@ class EdgeRoundifier(bpy.types.Operator):
         return angle
 
     def getFirstEdgeVertexClone(self, edge, bm):
-        startVertIndex = 1
+        v1, v2 = self.getEdgeVertices(edge)
+
+        # v1 = edge.verts[0].co
+        # v2 = edge.verts[1].co
+        firstIndex = self.getVertIndexClosestToCursor(edge)
+        startVertIndex = self.getOtherIndex(firstIndex) 
+        # closestVert = self.getVertClosestToCursor(v1, v2)
+        # if closestVert == v2:
+        #     startVertIndex = 0
+
         if self.invertAngle:
-            startVertIndex = 0
+            startVertIndex = self.getOtherIndex(startVertIndex)
         v0org = edge.verts[startVertIndex]
         v0 = bm.verts.new(v0org.co)
         return startVertIndex, v0
 
-    def getOtherEdgeVertexClone(self, startVertIndex, edge, bm):
+    def getOtherIndex(self, startVertIndex):
         if (startVertIndex == 1):
             otherIndex = 0
         else:
             otherIndex = 1
+        return otherIndex
+
+    def getOtherEdgeVertexClone(self, startVertIndex, edge, bm):
+        otherIndex = self.getOtherIndex(startVertIndex)
         v1org = edge.verts[otherIndex]
         v1 = bm.verts.new(v1org.co)
         return v1
@@ -823,6 +918,7 @@ class EdgeRoundifier(bpy.types.Operator):
         arcVerts = [bm.verts[i] for i in lastSpinVertIndices]
         return arcVerts
 
+# === CONNECT ===
     def connectEdges(self, originalEdge, edge, arcVerts, bm, mesh):
         if self.connectArcWithEdge:
             self.connectArcTogetherWithEdge(originalEdge, arcVerts, bm, mesh)
@@ -899,10 +995,11 @@ class EdgeRoundifier(bpy.types.Operator):
         bme = bm.edges.new([bmv1, bmv2])
         self.sel.refreshMesh(bm, mesh)
 
-
+# === EDGE NORMALS ===
     def calculateEdgeNormalWithSelectionCenter(self, edge, n, selectionCenter):
-        v0 = edge.verts[0].co
-        v1 = edge.verts[1].co
+        # v0 = edge.verts[0].co
+        # v1 = edge.verts[1].co
+        v0, v1 = self.getEdgeVertices(edge)
         a = (v1 - v0).normalized()
         n = n.normalized()
         s = (selectionCenter - v0).normalized()
@@ -962,11 +1059,19 @@ class EdgeRoundifier(bpy.types.Operator):
             normal = self.getVector(Vector((0, 0, 1)))
 
         print('Actual Normal = ' + str(normal))
+
+# TEMPORARY NORMAL DRAWN 
+        v0, v1 = self.getEdgeVertices(edge)
+        edgeV1 = v0
+        bmv1 = bm.verts.new(edgeV1)
+        bmv2 = bm.verts.new(edgeV1 + normal)
+        bm.edges.new([bmv1, bmv2])
         return normal
 
     def getEdgeVector(self, edge):
-        V1, V2, edgeVector, edgeLength, center = self.getEdgeInfo(edge)
-        return edgeVector
+        # V1, V2, edgeVector, edgeLength, center = self.getEdgeInfo(edge)
+        v1, v2 = self.getEdgeVertices(edge)
+        return v2 - v1
 
     def getEdgeNormalAuto(self, edge, facesWithEdge, lenFacesWithEdge):
         normal = self.getEdgeVector(edge)
@@ -988,7 +1093,7 @@ class EdgeRoundifier(bpy.types.Operator):
             normal = self.getEdgeNormalView(edge)
         return normal
 
-    def getEdgeNormalView(self, edge):  # OK
+    def getEdgeNormalView(self, edge):
         normal = self.getEdgeVector(edge)
         viewMatrix = self.getViewMatrix()
         print('viewMatrix = ' + str(viewMatrix))
@@ -1008,8 +1113,9 @@ class EdgeRoundifier(bpy.types.Operator):
         return normal
 
     def calculateEdgeNormal(self, edge, n):
-        v0 = edge.verts[0].co
-        v1 = edge.verts[1].co
+        # v0 = edge.verts[0].co
+        # v1 = edge.verts[1].co
+        v0, v1 = self.getEdgeVertices(edge)
         a = v1 - v0
         normal = a.cross(n)
         if self.flip:
@@ -1241,42 +1347,7 @@ class EdgeRoundifier(bpy.types.Operator):
 
     
 
-    def offsetArcPerpendicular(self, bm, mesh, Verts, edge, parameters):
-        perpendicularVector = self.getEdgePerpendicularVector(
-            edge, parameters["plane"])
-        offset = parameters["offset"]
-        translation = offset * perpendicularVector
-
-        try:
-            bmesh.ops.translate(
-                bm,
-                verts=Verts,
-                vec=translation)
-        except ValueError:
-            print("[Edge Roundifier]: Perpendicular translate value error - multiple vertices in list - try unchecking 'Centers'")
-
-        indexes = [v.index for v in Verts]
-        self.sel.refreshMesh(bm, mesh)
-        offsetVertices = [bm.verts[i] for i in indexes]
-        return offsetVertices
-
-    def offsetArcParallel(self, bm, mesh, Verts, edge, parameters):
-        edgeVector = self.getNormalizedEdgeVector(edge)
-        offset = parameters["offset2"]
-        translation = offset * edgeVector
-
-        try:
-            bmesh.ops.translate(
-                bm,
-                verts=Verts,
-                vec=translation)
-        except ValueError:
-            print("[Edge Roundifier]: Parallel translate value error - multiple vertices in list - try unchecking 'Centers'")
-
-        indexes = [v.index for v in Verts]
-        self.sel.refreshMesh(bm, mesh)
-        offsetVertices = [bm.verts[i] for i in indexes]
-        return offsetVertices
+    
 
     def skipThisEdge(self, V1, V2, plane):
         # Check If It is possible to spin selected verts on this plane if not
