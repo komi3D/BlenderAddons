@@ -754,7 +754,7 @@ class EdgeRoundifier(bpy.types.Operator):
         bmv2 = bm.verts.new(((v2 - origin) * factor) + origin)
         return bm.edges.new([bmv1, bmv2])
 
-    def getEdgeVertices(self, edge):
+    def getFirstIndex(self, edge):
         firstIndex = None
         if self.firstVertStrategy == 'V1':
             firstIndex = 0
@@ -764,7 +764,10 @@ class EdgeRoundifier(bpy.types.Operator):
             firstIndex = self.getVertIndexClosestToCursor(edge)
         else:
             firstIndex = 0
+        return firstIndex
 
+    def getEdgeVertices(self, edge):
+        firstIndex = self.getFirstIndex(edge)
         otherIndex = self.getOtherIndex(firstIndex)
         v1 = edge.verts[firstIndex].co
         v2 = edge.verts[otherIndex].co
@@ -830,14 +833,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
     def getFirstEdgeVertexClone(self, edge, bm):
         v1, v2 = self.getEdgeVertices(edge)
-
-        # v1 = edge.verts[0].co
-        # v2 = edge.verts[1].co
-        firstIndex = self.getVertIndexClosestToCursor(edge)
+        firstIndex = self.getFirstIndex(edge)
         startVertIndex = self.getOtherIndex(firstIndex) 
-        # closestVert = self.getVertClosestToCursor(v1, v2)
-        # if closestVert == v2:
-        #     startVertIndex = 0
 
         if self.invertAngle:
             startVertIndex = self.getOtherIndex(startVertIndex)
@@ -884,12 +881,14 @@ class EdgeRoundifier(bpy.types.Operator):
         edge = self.scaleEdge(originalEdge, bm)
         V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
         self.updateRadiusAndAngle(edgeLength)
-
+        print('originalEdge: v1 = ' + str(originalEdge.verts[0].co) + ' v2 = ' + str(originalEdge.verts[1].co))
+        print('scaledEdge: V1 = ' + str(V1) + 'V2 = ' + str(V2))
         steps = self.n
         angle = self.a
         distance = cos(radians(angle / 2)) * self.r
         center = edgeCenter - (distance * matrix.transposed()[1])
         startVertIndex, v0 = self.getFirstEdgeVertexClone(edge, bm)
+        print('scaledEdge: v0 = ' + str(v0.co))
         axis = matrix.transposed()[2]
         angle = self.adjustAngle(angle)
         result1 = self.drawArcAndSelect(v0, center, axis, angle, steps, bm, mesh)
