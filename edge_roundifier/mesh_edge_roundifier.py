@@ -618,7 +618,7 @@ class EdgeRoundifier(bpy.types.Operator):
         self.index = 0
         for e in edges:
             print('=======================================')
-            matrix = self.creteTransformOrientation(e, bm, mesh)
+            matrix = self.makeMatrixFromEdge(e, bm)
             arcVerts = self.processEdge(e, bm, mesh, matrix)
             self.transformArc(arcVerts, bm, mesh)
             arcs.append(arcVerts)
@@ -773,40 +773,6 @@ class EdgeRoundifier(bpy.types.Operator):
         v1 = edge.verts[firstIndex].co
         v2 = edge.verts[otherIndex].co
         return v1, v2
-
-    def creteTransformOrientation(self, e, bm, mesh):
-        matrix = self.makeMatrixFromEdge(e, bm)
-        self.newTransformOrientation(matrix, 'EdgeRoundifier' + str(self.index))
-        self.index += 1
-        return matrix
-
-    def newTransformOrientation(self, mat, orientationName):
-        # create view
-        bpy.ops.transform.create_orientation(
-            name=orientationName, overwrite=True)
-        scene = bpy.context.scene
-        orientation = scene.orientations.get(orientationName)
-        if (orientation == None and 'Cube' in bpy.context.active_object.name):
-            return # issues with cubes when creating orientation...
-        retry = 0
-        while (orientation == None and retry < 5):
-            sleep(0.1)
-            print('TOC!')
-            bpy.ops.transform.create_orientation(name=orientationName, overwrite=True)
-            scene = bpy.context.scene
-            orientation = scene.orientations.get(orientationName)
-            retry += 1
-        mat3 = mat.to_3x3()
-        if (orientation != None):
-            orientation.matrix = mat3
-
-        # find 3d views to set to "new"
-    def setTransformationOrientation(self, orientationName):
-        screen = context.screen
-        views = [
-            area.spaces.active for area in screen.areas if area.type == 'VIEW_3D']
-        for view in views:
-            view.transform_orientation = orientationName
 
     def makeMatrixFromEdge(self, edge, bm):
         edgeNormal = self.getEdgeNormalWithLinkFaces(edge, bm)
