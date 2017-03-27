@@ -36,6 +36,7 @@ import bpy.props
 import imp
 from math import sqrt, acos, asin, pi, radians, degrees, sin, acos, cos
 from mathutils import Vector, Euler, Matrix, Quaternion
+from time import sleep
 import types
 
 
@@ -780,15 +781,24 @@ class EdgeRoundifier(bpy.types.Operator):
         return matrix
 
     def newTransformOrientation(self, mat, orientationName):
-        context = bpy.context
-        scene = context.scene
-
         # create view
         bpy.ops.transform.create_orientation(
             name=orientationName, overwrite=True)
+        scene = bpy.context.scene
         orientation = scene.orientations.get(orientationName)
+        if (orientation == None and 'Cube' in bpy.context.active_object.name):
+            return # issues with cubes when creating orientation...
+        retry = 0
+        while (orientation == None and retry < 5):
+            sleep(0.1)
+            print('TOC!')
+            bpy.ops.transform.create_orientation(name=orientationName, overwrite=True)
+            scene = bpy.context.scene
+            orientation = scene.orientations.get(orientationName)
+            retry += 1
         mat3 = mat.to_3x3()
-        orientation.matrix = mat3
+        if (orientation != None):
+            orientation.matrix = mat3
 
         # find 3d views to set to "new"
     def setTransformationOrientation(self, orientationName):
