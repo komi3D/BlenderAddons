@@ -22,7 +22,7 @@ bl_info = {
     "category": "Mesh",
     'author': 'Piotr Komisarczyk (komi3D), PKHG',
     'version': (2, 0, 0),
-    'blender': (2, 7, 3),
+    'blender': (2, 7, 8),
     'location': 'SPACE > Edge Roundifier or CTRL-E > Edge Roundifier or Tools > Addons > Edge Roundifier',
     'description': 'Mesh editing script allowing edge rounding',
     'wiki_url': '',
@@ -649,7 +649,8 @@ class EdgeRoundifier(bpy.types.Operator):
     def transformArc(self, arcVerts, bm, mesh):
         mat = arcVerts['matrix']
         verts = arcVerts['verts']
-        center = ( arcVerts['start'].co + arcVerts['end'].co ) / 2
+        center = ( arcVerts['start'].co + arcVerts['end'].co ) / 2\
+        
         # edgeRotate
         edgeAxis = mat.transposed()[0]
         a_mat = Quaternion(edgeAxis, radians(self.edgeAngle)).normalized().to_matrix()
@@ -660,45 +661,55 @@ class EdgeRoundifier(bpy.types.Operator):
         axis = mat.transposed()[2]
         b_mat = Quaternion(axis, radians(self.axisAngle)).normalized().to_matrix()
         bmesh.ops.rotate(bm, cent=center, matrix=b_mat, verts=verts)
+        # arcVerts = self.offsetArcPerpendicular(arcVerts,bm,mesh)
+        # arcVerts = self.offsetArcParallel(arcVerts, bm, mesh)
         self.sel.refreshMesh(bm, mesh)
+        
+        
 
 # TODO: rework offsetArcPerpendicular and parallel
-    def offsetArcPerpendicular(self, bm, mesh, Verts, edge, parameters):
-        perpendicularVector = self.getEdgePerpendicularVector(
-            edge, parameters["plane"])
-        offset = parameters["offset"]
-        translation = offset * perpendicularVector
+    def offsetArcPerpendicular(self, verts, mat, bm, mesh):
+        # mat = arcVerts['matrix']
+        # verts = arcVerts['verts']
+        perpendicularVector = mat.transposed()[1]
+        translation = self.offset * perpendicularVector
 
         try:
             bmesh.ops.translate(
                 bm,
-                verts=Verts,
+                verts=verts,
                 vec=translation)
         except ValueError:
             print("[Edge Roundifier]: Perpendicular translate value error - multiple vertices in list - try unchecking 'Centers'")
-
-        indexes = [v.index for v in Verts]
+        
+        indexes = [v.index for v in verts]
         self.sel.refreshMesh(bm, mesh)
+        bm.verts.ensure_lookup_table()
         offsetVertices = [bm.verts[i] for i in indexes]
         return offsetVertices
+        # return arcVerts
 
-    def offsetArcParallel(self, bm, mesh, Verts, edge, parameters):
-        edgeVector = self.getNormalizedEdgeVector(edge)
-        offset = parameters["offset2"]
-        translation = offset * edgeVector
-
+    def offsetArcParallel(self, verts, mat, bm, mesh):
+        # mat = arcVerts['matrix']
+        # verts = arcVerts['verts']
+        edgeVector = mat.transposed()[0]
+        translation = self.offset2 * edgeVector
+        
+        
         try:
             bmesh.ops.translate(
                 bm,
-                verts=Verts,
+                verts=verts,
                 vec=translation)
         except ValueError:
             print("[Edge Roundifier]: Parallel translate value error - multiple vertices in list - try unchecking 'Centers'")
 
-        indexes = [v.index for v in Verts]
+        indexes = [v.index for v in verts]
         self.sel.refreshMesh(bm, mesh)
+        bm.verts.ensure_lookup_table()
         offsetVertices = [bm.verts[i] for i in indexes]
         return offsetVertices
+        # return arcVerts
 
     def calculateSelectionCenter(self, edges):
         selectionCenter = Vector((0, 0, 0))
@@ -877,10 +888,11 @@ class EdgeRoundifier(bpy.types.Operator):
             v1 = self.getOtherEdgeVertexClone(startVertIndex, edge, bm)
             self.drawArcAndSelect(v1, center2, axis, angle, steps, bm, mesh)
             arcVerts2 = self.prepareArcVerts(len(bm.verts) - 1, steps, bm )
-            arcVerts.append(arcVerts2)# TODO this needs to be tweaked for BOTH option !!!
             for el in arcVerts2:
                 arcVerts.append(el)
-
+        arcVerts = self.offsetArcParallel(arcVerts,matrix,bm, mesh)
+        arcVerts = self.offsetArcPerpendicular(arcVerts,matrix,bm, mesh)
+        #TODO Axis Rotate & connect
         self.connectEdges(originalEdge, edge, arcVerts, bm, mesh)
         
         if self.removeScaledEdges and self.edgeScaleFactor != 1.0:
@@ -896,7 +908,7 @@ class EdgeRoundifier(bpy.types.Operator):
 # === CONNECT ===
     def connectEdges(self, originalEdge, edge, arcVerts, bm, mesh):
         if self.connectArcWithEdge:
-            self.connectArcTogetherWithEdge(originalEdge, arcVerts, bm, mesh)
+            self.connectArcTogetherWithEdge(edge, arcVerts, bm, mesh)
         if self.connectScaledAndBase:
             self.connectScaledEdgeWithBaseEdge(edge, originalEdge, bm, mesh)
         
@@ -1036,11 +1048,11 @@ class EdgeRoundifier(bpy.types.Operator):
         print('Actual Normal = ' + str(normal))
 
 # TEMPORARY NORMAL DRAWN 
-        v0, v1 = self.getEdgeVertices(edge)
-        edgeV1 = v0
-        bmv1 = bm.verts.new(edgeV1)
-        bmv2 = bm.verts.new(edgeV1 + normal)
-        bm.edges.new([bmv1, bmv2])
+        # v0, v1 = self.getEdgeVertices(edge)
+        # edgeV1 = v0
+        # bmv1 = bm.verts.new(edgeV1)
+        # bmv2 = bm.verts.new(edgeV1 + normal)
+        # bm.edges.new([bmv1, bmv2])
         return normal
 
     def getEdgeVector(self, edge):
@@ -1088,8 +1100,6 @@ class EdgeRoundifier(bpy.types.Operator):
         return normal
 
     def calculateEdgeNormal(self, edge, n):
-        # v0 = edge.verts[0].co
-        # v1 = edge.verts[1].co
         v0, v1 = self.getEdgeVertices(edge)
         a = v1 - v0
         normal = a.cross(n)
@@ -1199,76 +1209,76 @@ class EdgeRoundifier(bpy.types.Operator):
         edgeCenter = (V2 + V1) * 0.5
         return V1, V2, edgeVector, edgeLength, edgeCenter
 
-    def roundify(self, edge, parameters, bm, mesh):
-        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
-        if self.skipThisEdge(V1, V2, parameters["plane"]):
-            return
+    # def roundify(self, edge, parameters, bm, mesh):
+    #     V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
+    #     if self.skipThisEdge(V1, V2, parameters["plane"]):
+    #         return
 
-        roundifyParams = None
-        arcVerts = None
-        roundifyParams = self.calculateRoundifyParams(
-            edge, parameters, bm, mesh)
-        if roundifyParams == None:
-            return
+    #     roundifyParams = None
+    #     arcVerts = None
+    #     roundifyParams = self.calculateRoundifyParams(
+    #         edge, parameters, bm, mesh)
+    #     if roundifyParams == None:
+    #         return
 
-        arcVerts = self.spinAndPostprocess(
-            edge, parameters, bm, mesh, edgeCenter, roundifyParams)
-        return arcVerts
+    #     arcVerts = self.spinAndPostprocess(
+    #         edge, parameters, bm, mesh, edgeCenter, roundifyParams)
+    #     return arcVerts
 
-    def spinAndPostprocess(self, edge, parameters, bm, mesh, edgeCenter, roundifyParams):
-        spinnedVerts, roundifyParamsUpdated = self.drawSpin(
-            edge, edgeCenter, roundifyParams, parameters, bm, mesh)
-        postProcessedArcVerts = self.arcPostprocessing(
-            edge, parameters, bm, mesh, roundifyParamsUpdated, spinnedVerts, edgeCenter)
-        return postProcessedArcVerts
+    # def spinAndPostprocess(self, edge, parameters, bm, mesh, edgeCenter, roundifyParams):
+    #     spinnedVerts, roundifyParamsUpdated = self.drawSpin(
+    #         edge, edgeCenter, roundifyParams, parameters, bm, mesh)
+    #     postProcessedArcVerts = self.arcPostprocessing(
+    #         edge, parameters, bm, mesh, roundifyParamsUpdated, spinnedVerts, edgeCenter)
+    #     return postProcessedArcVerts
 
-    def rotateArcAroundEdge(self, bm, mesh, arcVerts, parameters):
-        angle = parameters["edgeAngle"]
-        if angle != 0:
-            self.arc_rotator(arcVerts, angle, parameters)
+    # def rotateArcAroundEdge(self, bm, mesh, arcVerts, parameters):
+    #     angle = parameters["edgeAngle"]
+    #     if angle != 0:
+    #         self.arc_rotator(arcVerts, angle, parameters)
 
     # arc_rotator method was created by PKHG, I (komi3D) adjusted it to fit
     # the rest of this addon
-    def arc_rotator(self, arcVerts, extra_rotation, parameters):
-        bpy.ops.object.mode_set(mode='OBJECT')
-        old_location = self.obj.location.copy()
-        bpy.ops.transform.translate(value=- old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL',
-                                    mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
-        bpy.ops.object.mode_set(mode='EDIT')
-        adjust_matrix = self.obj.matrix_parent_inverse
-        bm = bmesh.from_edit_mesh(self.obj.data)
-        lastVert = len(arcVerts) - 1
-        if parameters["drawArcCenters"]:
-            lastVert = lastVert - 1  # center gets added as last vert of arc
-        v0_old = adjust_matrix * arcVerts[0].co.copy()
-        v1_old = adjust_matrix * arcVerts[lastVert].co.copy()
+    # def arc_rotator(self, arcVerts, extra_rotation, parameters):
+    #     bpy.ops.object.mode_set(mode='OBJECT')
+    #     old_location = self.obj.location.copy()
+    #     bpy.ops.transform.translate(value=- old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL',
+    #                                 mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+    #     bpy.ops.object.mode_set(mode='EDIT')
+    #     adjust_matrix = self.obj.matrix_parent_inverse
+    #     bm = bmesh.from_edit_mesh(self.obj.data)
+    #     lastVert = len(arcVerts) - 1
+    #     if parameters["drawArcCenters"]:
+    #         lastVert = lastVert - 1  # center gets added as last vert of arc
+    #     v0_old = adjust_matrix * arcVerts[0].co.copy()
+    #     v1_old = adjust_matrix * arcVerts[lastVert].co.copy()
 
-        # PKHG>INFO move if necessary v0 to origin such that the axis gos
-        # through origin and v1
-        if v0_old != Vector((0, 0, 0)):
-            for i, ele in enumerate(arcVerts):
-                arcVerts[i].co += - v0_old
+    #     # PKHG>INFO move if necessary v0 to origin such that the axis gos
+    #     # through origin and v1
+    #     if v0_old != Vector((0, 0, 0)):
+    #         for i, ele in enumerate(arcVerts):
+    #             arcVerts[i].co += - v0_old
 
-        axis = arcVerts[0].co - arcVerts[lastVert].co
+    #     axis = arcVerts[0].co - arcVerts[lastVert].co
 
-        a_quat = Quaternion(axis, radians(extra_rotation)).normalized()
-        a_mat = Quaternion(axis, radians(extra_rotation)
-                           ).normalized().to_matrix()
+    #     a_quat = Quaternion(axis, radians(extra_rotation)).normalized()
+    #     a_mat = Quaternion(axis, radians(extra_rotation)
+    #                        ).normalized().to_matrix()
 
-        for ele in arcVerts:
-            ele.co = a_mat * ele.co
+    #     for ele in arcVerts:
+    #         ele.co = a_mat * ele.co
 
-        # PKHG>INFO move back if needed
-        if v0_old != Vector((0, 0, 0)):
-            for i, ele in enumerate(arcVerts):
-                arcVerts[i].co += + v0_old
+    #     # PKHG>INFO move back if needed
+    #     if v0_old != Vector((0, 0, 0)):
+    #         for i, ele in enumerate(arcVerts):
+    #             arcVerts[i].co += + v0_old
 
-        bpy.ops.object.mode_set(mode='OBJECT')
-        # PKHG>INFO move origin object back print("old location = " ,
-        # old_location)
-        bpy.ops.transform.translate(value=old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL',
-                                    mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
-        bpy.ops.object.mode_set(mode='EDIT')
+    #     bpy.ops.object.mode_set(mode='OBJECT')
+    #     # PKHG>INFO move origin object back print("old location = " ,
+    #     # old_location)
+    #     bpy.ops.transform.translate(value=old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL',
+    #                                 mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+    #     bpy.ops.object.mode_set(mode='EDIT')
 
     def makeElliptic(self, bm, mesh, arcVertices, parameters):
         if parameters["ellipticFactor"] != 0:  # if 0 then nothing has to be done
@@ -1291,335 +1301,335 @@ class EdgeRoundifier(bpy.types.Operator):
 
         return arcVertices
 
-    def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts, edgeCenter):
-        [chosenSpinCenter, otherSpinCenter, spinAxis, angle,
-            steps, refObjectLocation] = roundifyParams
-        rotatedVerts = []
-        if parameters["rotateCenter"] == 'Edge':
-            rotatedVerts = self.rotateArcAroundSpinAxis(
-                bm, mesh, spinnedVerts, parameters, edgeCenter)
-        elif parameters["rotateCenter"] == 'Spin':
-            rotatedVerts = self.rotateArcAroundSpinAxis(
-                bm, mesh, spinnedVerts, parameters, chosenSpinCenter)
-        elif parameters["rotateCenter"] == 'V1':
-            rotatedVerts = self.rotateArcAroundSpinAxis(
-                bm, mesh, spinnedVerts, parameters, edge.verts[0].co)
-        elif parameters["rotateCenter"] == 'V2':
-            rotatedVerts = self.rotateArcAroundSpinAxis(
-                bm, mesh, spinnedVerts, parameters, edge.verts[1].co)
+    # def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts, edgeCenter):
+    #     [chosenSpinCenter, otherSpinCenter, spinAxis, angle,
+    #         steps, refObjectLocation] = roundifyParams
+    #     rotatedVerts = []
+    #     if parameters["rotateCenter"] == 'Edge':
+    #         rotatedVerts = self.rotateArcAroundSpinAxis(
+    #             bm, mesh, spinnedVerts, parameters, edgeCenter)
+    #     elif parameters["rotateCenter"] == 'Spin':
+    #         rotatedVerts = self.rotateArcAroundSpinAxis(
+    #             bm, mesh, spinnedVerts, parameters, chosenSpinCenter)
+    #     elif parameters["rotateCenter"] == 'V1':
+    #         rotatedVerts = self.rotateArcAroundSpinAxis(
+    #             bm, mesh, spinnedVerts, parameters, edge.verts[0].co)
+    #     elif parameters["rotateCenter"] == 'V2':
+    #         rotatedVerts = self.rotateArcAroundSpinAxis(
+    #             bm, mesh, spinnedVerts, parameters, edge.verts[1].co)
 
-        offsetVerts = self.offsetArcPerpendicular(
-            bm, mesh, rotatedVerts, edge, parameters)
-        offsetVerts2 = self.offsetArcParallel(
-            bm, mesh, offsetVerts, edge, parameters)
-        ellipticVerts = self.makeElliptic(bm, mesh, offsetVerts2, parameters)
-        self.rotateArcAroundEdge(bm, mesh, ellipticVerts, parameters)
+    #     offsetVerts = self.offsetArcPerpendicular(
+    #         bm, mesh, rotatedVerts, edge, parameters)
+    #     offsetVerts2 = self.offsetArcParallel(
+    #         bm, mesh, offsetVerts, edge, parameters)
+    #     ellipticVerts = self.makeElliptic(bm, mesh, offsetVerts2, parameters)
+    #     self.rotateArcAroundEdge(bm, mesh, ellipticVerts, parameters)
 
-        if parameters["connectArcWithEdge"]:
-            self.connectArcTogetherWithEdge(
-                edge, offsetVerts2, bm, mesh)
-        return offsetVerts2
-
-    
+    #     if parameters["connectArcWithEdge"]:
+    #         self.connectArcTogetherWithEdge(
+    #             edge, offsetVerts2, bm, mesh)
+    #     return offsetVerts2
 
     
 
-    def skipThisEdge(self, V1, V2, plane):
-        # Check If It is possible to spin selected verts on this plane if not
-        # exit roundifier
-        if(plane == XY):
-            if (V1[0] == V2[0] and V1[1] == V2[1]):
-                return True
-        elif(plane == YZ):
-            if (V1[1] == V2[1] and V1[2] == V2[2]):
-                return True
-        elif(plane == XZ):
-            if (V1[0] == V2[0] and V1[2] == V2[2]):
-                return True
-        return False
+    
 
-    def calculateRoundifyParams(self, edge, parameters, bm, mesh):
-        # BECAUSE ALL DATA FROM MESH IS IN LOCAL COORDINATES
-        # AND SPIN OPERATOR WORKS ON GLOBAL COORDINATES
-        # WE FIRST NEED TO TRANSLATE ALL INPUT DATA BY VECTOR EQUAL TO ORIGIN POSITION AND THEN PERFORM CALCULATIONS
-        # At least that is my understanding :) <komi3D>
+    # def skipThisEdge(self, V1, V2, plane):
+    #     # Check If It is possible to spin selected verts on this plane if not
+    #     # exit roundifier
+    #     if(plane == XY):
+    #         if (V1[0] == V2[0] and V1[1] == V2[1]):
+    #             return True
+    #     elif(plane == YZ):
+    #         if (V1[1] == V2[1] and V1[2] == V2[2]):
+    #             return True
+    #     elif(plane == XZ):
+    #         if (V1[0] == V2[0] and V1[2] == V2[2]):
+    #             return True
+    #     return False
 
-        # V1 V2 stores Local Coordinates
-        V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
+    # def calculateRoundifyParams(self, edge, parameters, bm, mesh):
+    #     # BECAUSE ALL DATA FROM MESH IS IN LOCAL COORDINATES
+    #     # AND SPIN OPERATOR WORKS ON GLOBAL COORDINATES
+    #     # WE FIRST NEED TO TRANSLATE ALL INPUT DATA BY VECTOR EQUAL TO ORIGIN POSITION AND THEN PERFORM CALCULATIONS
+    #     # At least that is my understanding :) <komi3D>
 
-        debugPrintNew(d_Plane, "PLANE: " + parameters["plane"])
-        lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(
-            edgeCenter, edgeVector, parameters["plane"])
-        circleMidPoint = V1
-        circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters[
-                                                                   "plane"])
-        radius = parameters["radius"]
+    #     # V1 V2 stores Local Coordinates
+    #     V1, V2, edgeVector, edgeLength, edgeCenter = self.getEdgeInfo(edge)
 
-        angle = 0
-        if (parameters["entryMode"] == 'Angle'):
-            if (parameters["angleEnum"] != 'Other'):
-                radius, angle = self.CalculateRadiusAndAngleForAnglePresets(
-                    parameters["angleEnum"], radius, angle, edgeLength)
-            else:
-                radius, angle = self.CalculateRadius(edgeLength)
-        debugPrintNew(d_Radius_Angle, "RADIUS = " +
-                      str(radius) + "  ANGLE = " + str(angle))
-        roots = None
-        if angle != pi:  # mode other than 180
-            if lineAB == None:
-                roots = self.calc.getLineCircleIntersectionsWhenXPerpendicular(
-                    edgeCenter, circleMidPointOnPlane, radius, parameters["plane"])
-            else:
-                roots = self.calc.getLineCircleIntersections(
-                    lineAB, circleMidPointOnPlane, radius)
-            if roots == None:
-                debugPrint(
-                    "[Edge Roundifier]: No centers were found. Change radius to higher value")
-                return None
-            roots = self.addMissingCoordinate(
-                roots, V1, parameters["plane"])  # adds X, Y or Z coordinate
-        else:
-            roots = [edgeCenter, edgeCenter]
-        debugPrintNew(d_Roots, "roots=" + str(roots))
+    #     debugPrintNew(d_Plane, "PLANE: " + parameters["plane"])
+    #     lineAB = self.calc.getLineCoefficientsPerpendicularToVectorInPoint(
+    #         edgeCenter, edgeVector, parameters["plane"])
+    #     circleMidPoint = V1
+    #     circleMidPointOnPlane = self.calc.getCircleMidPointOnPlane(V1, parameters[
+    #                                                                "plane"])
+    #     radius = parameters["radius"]
 
-        refObjectLocation = None
-        objectLocation = bpy.context.active_object.location  # Origin Location
+    #     angle = 0
+    #     if (parameters["entryMode"] == 'Angle'):
+    #         if (parameters["angleEnum"] != 'Other'):
+    #             radius, angle = self.CalculateRadiusAndAngleForAnglePresets(
+    #                 parameters["angleEnum"], radius, angle, edgeLength)
+    #         else:
+    #             radius, angle = self.CalculateRadius(edgeLength)
+    #     debugPrintNew(d_Radius_Angle, "RADIUS = " +
+    #                   str(radius) + "  ANGLE = " + str(angle))
+    #     roots = None
+    #     if angle != pi:  # mode other than 180
+    #         if lineAB == None:
+    #             roots = self.calc.getLineCircleIntersectionsWhenXPerpendicular(
+    #                 edgeCenter, circleMidPointOnPlane, radius, parameters["plane"])
+    #         else:
+    #             roots = self.calc.getLineCircleIntersections(
+    #                 lineAB, circleMidPointOnPlane, radius)
+    #         if roots == None:
+    #             debugPrint(
+    #                 "[Edge Roundifier]: No centers were found. Change radius to higher value")
+    #             return None
+    #         roots = self.addMissingCoordinate(
+    #             roots, V1, parameters["plane"])  # adds X, Y or Z coordinate
+    #     else:
+    #         roots = [edgeCenter, edgeCenter]
+    #     debugPrintNew(d_Roots, "roots=" + str(roots))
 
-        if parameters["refObject"] == "ORG":
-            refObjectLocation = [0, 0, 0]
-        elif parameters["refObject"] == "CUR":
-            refObjectLocation = bpy.context.scene.cursor_location - objectLocation
-        else:
-            refObjectLocation = self.calc.getEdgeReference(
-                edge, edgeCenter, parameters["plane"])
+    #     refObjectLocation = None
+    #     objectLocation = bpy.context.active_object.location  # Origin Location
 
-        debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
-        chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(
-            refObjectLocation, roots)
+    #     if parameters["refObject"] == "ORG":
+    #         refObjectLocation = [0, 0, 0]
+    #     elif parameters["refObject"] == "CUR":
+    #         refObjectLocation = bpy.context.scene.cursor_location - objectLocation
+    #     else:
+    #         refObjectLocation = self.calc.getEdgeReference(
+    #             edge, edgeCenter, parameters["plane"])
 
-        if (parameters["entryMode"] == "Radius"):
-            halfAngle = self.calc.getAngle(
-                edgeCenter, chosenSpinCenter, circleMidPoint)
-            angle = 2 * halfAngle[0]  # in radians
-            self.a = degrees(angle)  # in degrees
+    #     debugPrintNew(d_RefObject, parameters["refObject"], refObjectLocation)
+    #     chosenSpinCenter, otherSpinCenter = self.getSpinCenterClosestToRefCenter(
+    #         refObjectLocation, roots)
 
-        spinAxis = self.getSpinAxis(parameters["plane"])
-        steps = parameters["segments"]
-        angle = -angle  # rotate clockwise by default
+    #     if (parameters["entryMode"] == "Radius"):
+    #         halfAngle = self.calc.getAngle(
+    #             edgeCenter, chosenSpinCenter, circleMidPoint)
+    #         angle = 2 * halfAngle[0]  # in radians
+    #         self.a = degrees(angle)  # in degrees
 
-        return [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
+    #     spinAxis = self.getSpinAxis(parameters["plane"])
+    #     steps = parameters["segments"]
+    #     angle = -angle  # rotate clockwise by default
 
-    def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
-        [chosenSpinCenter, otherSpinCenter, spinAxis, angle,
-            steps, refObjectLocation] = roundifyParams
+    #     return [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
 
-        v0org, v1org = (edge.verts[0], edge.verts[1])
+    # def drawSpin(self, edge, edgeCenter, roundifyParams, parameters, bm, mesh):
+    #     [chosenSpinCenter, otherSpinCenter, spinAxis, angle,
+    #         steps, refObjectLocation] = roundifyParams
 
-        if parameters["flip"]:
-            angle = -angle
-            spinCenterTemp = chosenSpinCenter
-            chosenSpinCenter = otherSpinCenter
-            otherSpinCenter = spinCenterTemp
+    #     v0org, v1org = (edge.verts[0], edge.verts[1])
 
-        if(parameters["invertAngle"]):
-            if angle < 0:
-                angle = two_pi + angle
-            elif angle > 0:
-                angle = -two_pi + angle
-            else:
-                angle = two_pi
+    #     if parameters["flip"]:
+    #         angle = -angle
+    #         spinCenterTemp = chosenSpinCenter
+    #         chosenSpinCenter = otherSpinCenter
+    #         otherSpinCenter = spinCenterTemp
 
-        if(parameters["fullCircles"]):
-            angle = two_pi
+    #     if(parameters["invertAngle"]):
+    #         if angle < 0:
+    #             angle = two_pi + angle
+    #         elif angle > 0:
+    #             angle = -two_pi + angle
+    #         else:
+    #             angle = two_pi
 
-        v0 = bm.verts.new(v0org.co)
+    #     if(parameters["fullCircles"]):
+    #         angle = two_pi
 
-        result = bmesh.ops.spin(bm, geom=[v0], cent=chosenSpinCenter, axis=spinAxis,
-                                angle=angle, steps=steps, use_duplicate=False)
+    #     v0 = bm.verts.new(v0org.co)
 
-        # it seems there is something wrong with last index of this spin...
-        # I need to calculate the last index manually here...
-        vertsLength = len(bm.verts)
-        bm.verts.ensure_lookup_table()
-        lastVertIndex = bm.verts[vertsLength - 1].index
-        lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
+    #     result = bmesh.ops.spin(bm, geom=[v0], cent=chosenSpinCenter, axis=spinAxis,
+    #                             angle=angle, steps=steps, use_duplicate=False)
 
-        self.sel.refreshMesh(bm, mesh)
+    #     # it seems there is something wrong with last index of this spin...
+    #     # I need to calculate the last index manually here...
+    #     vertsLength = len(bm.verts)
+    #     bm.verts.ensure_lookup_table()
+    #     lastVertIndex = bm.verts[vertsLength - 1].index
+    #     lastSpinVertIndices = self.getLastSpinVertIndices(steps, lastVertIndex)
 
-        alternativeLastSpinVertIndices = []
-        bothSpinVertices = []
-        spinVertices = []
-        alternate = False
+    #     self.sel.refreshMesh(bm, mesh)
 
-        if ((angle == pi or angle == -pi) and not parameters["bothSides"]):
+    #     alternativeLastSpinVertIndices = []
+    #     bothSpinVertices = []
+    #     spinVertices = []
+    #     alternate = False
 
-            midVertexIndex = lastVertIndex - round(steps / 2)
-            bm.verts.ensure_lookup_table()
-            midVert = bm.verts[midVertexIndex].co
+    #     if ((angle == pi or angle == -pi) and not parameters["bothSides"]):
 
-            midVertexDistance = (
-                Vector(refObjectLocation) - Vector(midVert)).length
-            midEdgeDistance = (Vector(refObjectLocation) -
-                               Vector(edgeCenter)).length
+    #         midVertexIndex = lastVertIndex - round(steps / 2)
+    #         bm.verts.ensure_lookup_table()
+    #         midVert = bm.verts[midVertexIndex].co
 
-            if ((parameters["invertAngle"]) or (parameters["flip"])):
-                if (midVertexDistance > midEdgeDistance):
-                    alternativeLastSpinVertIndices = self.alternateSpin(
-                        bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+    #         midVertexDistance = (
+    #             Vector(refObjectLocation) - Vector(midVert)).length
+    #         midEdgeDistance = (Vector(refObjectLocation) -
+    #                            Vector(edgeCenter)).length
 
-            else:
-                if (midVertexDistance < midEdgeDistance):
-                    alternativeLastSpinVertIndices = self.alternateSpin(
-                        bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+    #         if ((parameters["invertAngle"]) or (parameters["flip"])):
+    #             if (midVertexDistance > midEdgeDistance):
+    #                 alternativeLastSpinVertIndices = self.alternateSpin(
+    #                     bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
 
-        elif (angle != two_pi):  # to allow full circles :)
-            if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
-                alternativeLastSpinVertIndices = self.alternateSpin(
-                    bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
-                alternate = True
+    #         else:
+    #             if (midVertexDistance < midEdgeDistance):
+    #                 alternativeLastSpinVertIndices = self.alternateSpin(
+    #                     bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
 
-        self.sel.refreshMesh(bm, mesh)
-        if alternativeLastSpinVertIndices != []:
-            lastSpinVertIndices = alternativeLastSpinVertIndices
+    #     elif (angle != two_pi):  # to allow full circles :)
+    #         if (result['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
+    #             alternativeLastSpinVertIndices = self.alternateSpin(
+    #                 bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices)
+    #             alternate = True
 
-        # make sure arc was added to bmesh
-        if lastSpinVertIndices.stop <= len(bm.verts):
-            spinVertices = [bm.verts[i] for i in lastSpinVertIndices]
-            if alternativeLastSpinVertIndices != []:
-                spinVertices = spinVertices + [v0]
-            else:
-                spinVertices = [v0] + spinVertices
+    #     self.sel.refreshMesh(bm, mesh)
+    #     if alternativeLastSpinVertIndices != []:
+    #         lastSpinVertIndices = alternativeLastSpinVertIndices
 
-        if (parameters["bothSides"]):
-                # do some more testing here!!!
-            if (angle == pi or angle == -pi):
-                alternativeLastSpinVertIndices = self.alternateSpinNoDelete(
-                    bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
-            elif alternate:
-                alternativeLastSpinVertIndices = self.alternateSpinNoDelete(
-                    bm, mesh, angle, otherSpinCenter, spinAxis, steps, v0, v1org, [])
-            elif not alternate:
-                alternativeLastSpinVertIndices = self.alternateSpinNoDelete(
-                    bm, mesh, -angle, otherSpinCenter, spinAxis, steps, v0, v1org, [])
-            bothSpinVertices = [bm.verts[i] for i in lastSpinVertIndices]
-            alternativeSpinVertices = [bm.verts[i]
-                                       for i in alternativeLastSpinVertIndices]
-            bothSpinVertices = [v0] + \
-                bothSpinVertices + alternativeSpinVertices
-            spinVertices = bothSpinVertices
+    #     # make sure arc was added to bmesh
+    #     if lastSpinVertIndices.stop <= len(bm.verts):
+    #         spinVertices = [bm.verts[i] for i in lastSpinVertIndices]
+    #         if alternativeLastSpinVertIndices != []:
+    #             spinVertices = spinVertices + [v0]
+    #         else:
+    #             spinVertices = [v0] + spinVertices
 
-        if (parameters["fullCircles"]):
-            v1 = bm.verts.new(v1org.co)
-            spinVertices = spinVertices + [v1]
+    #     if (parameters["bothSides"]):
+    #             # do some more testing here!!!
+    #         if (angle == pi or angle == -pi):
+    #             alternativeLastSpinVertIndices = self.alternateSpinNoDelete(
+    #                 bm, mesh, -angle, chosenSpinCenter, spinAxis, steps, v0, v1org, [])
+    #         elif alternate:
+    #             alternativeLastSpinVertIndices = self.alternateSpinNoDelete(
+    #                 bm, mesh, angle, otherSpinCenter, spinAxis, steps, v0, v1org, [])
+    #         elif not alternate:
+    #             alternativeLastSpinVertIndices = self.alternateSpinNoDelete(
+    #                 bm, mesh, -angle, otherSpinCenter, spinAxis, steps, v0, v1org, [])
+    #         bothSpinVertices = [bm.verts[i] for i in lastSpinVertIndices]
+    #         alternativeSpinVertices = [bm.verts[i]
+    #                                    for i in alternativeLastSpinVertIndices]
+    #         bothSpinVertices = [v0] + \
+    #             bothSpinVertices + alternativeSpinVertices
+    #         spinVertices = bothSpinVertices
 
-        if (parameters['drawArcCenters']):
-            centerVert = bm.verts.new(chosenSpinCenter)
-            spinVertices.append(centerVert)
+    #     if (parameters["fullCircles"]):
+    #         v1 = bm.verts.new(v1org.co)
+    #         spinVertices = spinVertices + [v1]
 
-        return spinVertices, [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
+    #     if (parameters['drawArcCenters']):
+    #         centerVert = bm.verts.new(chosenSpinCenter)
+    #         spinVertices.append(centerVert)
+
+    #     return spinVertices, [chosenSpinCenter, otherSpinCenter, spinAxis, angle, steps, refObjectLocation]
 
 ##########################################
 
-    def deleteSpinVertices(self, bm, mesh, lastSpinVertIndices):
-        verticesForDeletion = []
-        bm.verts.ensure_lookup_table()
-        for i in lastSpinVertIndices:
-            vi = bm.verts[i]
-            vi.select = True
-            debugPrint(str(i) + ") " + str(vi))
-            verticesForDeletion.append(vi)
+    # def deleteSpinVertices(self, bm, mesh, lastSpinVertIndices):
+    #     verticesForDeletion = []
+    #     bm.verts.ensure_lookup_table()
+    #     for i in lastSpinVertIndices:
+    #         vi = bm.verts[i]
+    #         vi.select = True
+    #         debugPrint(str(i) + ") " + str(vi))
+    #         verticesForDeletion.append(vi)
 
-        bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
-        bmesh.update_edit_mesh(mesh, True)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.mode_set(mode='EDIT')
+    #     bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
+    #     bmesh.update_edit_mesh(mesh, True)
+    #     bpy.ops.object.mode_set(mode='OBJECT')
+    #     bpy.ops.object.mode_set(mode='EDIT')
 
-    def alternateSpinNoDelete(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
-        v0prim = v0
+    # def alternateSpinNoDelete(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
+    #     v0prim = v0
 
-        result2 = bmesh.ops.spin(bm, geom=[v0prim], cent=chosenSpinCenter, axis=spinAxis,
-                                 angle=angle, steps=steps, use_duplicate=False)
-        vertsLength = len(bm.verts)
-        bm.verts.ensure_lookup_table()
-        lastVertIndex2 = bm.verts[vertsLength - 1].index
+    #     result2 = bmesh.ops.spin(bm, geom=[v0prim], cent=chosenSpinCenter, axis=spinAxis,
+    #                              angle=angle, steps=steps, use_duplicate=False)
+    #     vertsLength = len(bm.verts)
+    #     bm.verts.ensure_lookup_table()
+    #     lastVertIndex2 = bm.verts[vertsLength - 1].index
 
-        lastSpinVertIndices2 = self.getLastSpinVertIndices(
-            steps, lastVertIndex2)
-        return lastSpinVertIndices2
+    #     lastSpinVertIndices2 = self.getLastSpinVertIndices(
+    #         steps, lastVertIndex2)
+    #     return lastSpinVertIndices2
 
-    def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
-        self.deleteSpinVertices(bm, mesh, lastSpinVertIndices)
-        v0prim = v0
+    # def alternateSpin(self, bm, mesh, angle, chosenSpinCenter, spinAxis, steps, v0, v1org, lastSpinVertIndices):
+    #     self.deleteSpinVertices(bm, mesh, lastSpinVertIndices)
+    #     v0prim = v0
 
-        result2 = bmesh.ops.spin(bm, geom=[v0prim], cent=chosenSpinCenter, axis=spinAxis,
-                                 angle=-angle, steps=steps, use_duplicate=False)
-        # it seems there is something wrong with last index of this spin...
-        # I need to calculate the last index manually here...
-        vertsLength = len(bm.verts)
-        bm.verts.ensure_lookup_table()
-        lastVertIndex2 = bm.verts[vertsLength - 1].index
+    #     result2 = bmesh.ops.spin(bm, geom=[v0prim], cent=chosenSpinCenter, axis=spinAxis,
+    #                              angle=-angle, steps=steps, use_duplicate=False)
+    #     # it seems there is something wrong with last index of this spin...
+    #     # I need to calculate the last index manually here...
+    #     vertsLength = len(bm.verts)
+    #     bm.verts.ensure_lookup_table()
+    #     lastVertIndex2 = bm.verts[vertsLength - 1].index
 
-        lastSpinVertIndices2 = self.getLastSpinVertIndices(
-            steps, lastVertIndex2)
-        # second spin also does not hit the v1org
-        if (result2['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
+    #     lastSpinVertIndices2 = self.getLastSpinVertIndices(
+    #         steps, lastVertIndex2)
+    #     # second spin also does not hit the v1org
+    #     if (result2['geom_last'][0].co - v1org.co).length > SPIN_END_THRESHOLD:
 
-            self.deleteSpinVertices(bm, mesh, lastSpinVertIndices2)
-            self.deleteSpinVertices(bm, mesh, range(v0.index, v0.index + 1))
-            return []
-        else:
-            return lastSpinVertIndices2
+    #         self.deleteSpinVertices(bm, mesh, lastSpinVertIndices2)
+    #         self.deleteSpinVertices(bm, mesh, range(v0.index, v0.index + 1))
+    #         return []
+    #     else:
+    #         return lastSpinVertIndices2
 
-    def getLastSpinVertIndices(self, steps, lastVertIndex):
-        arcfirstVertexIndex = lastVertIndex - steps + 1
-        lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
-        return lastSpinVertIndices
+    # def getLastSpinVertIndices(self, steps, lastVertIndex):
+    #     arcfirstVertexIndex = lastVertIndex - steps + 1
+    #     lastSpinVertIndices = range(arcfirstVertexIndex, lastVertIndex + 1)
+    #     return lastSpinVertIndices
 
 
 ##################
 
-    def rotateArcAroundSpinAxis(self, bm, mesh, vertices, parameters, edgeCenter):
 
-        axisAngle = parameters["axisAngle"]
-        plane = parameters["plane"]
-        # compensate rotation center
-        objectLocation = bpy.context.active_object.location
-        #center = objectLocation + chosenSpinCenter
-        center = objectLocation + edgeCenter
+    # def rotateArcAroundSpinAxis(self, bm, mesh, vertices, parameters, edgeCenter):
+    #     axisAngle = parameters["axisAngle"]
+    #     plane = parameters["plane"]
+    #     # compensate rotation center
+    #     objectLocation = bpy.context.active_object.location
+    #     #center = objectLocation + chosenSpinCenter
+    #     center = objectLocation + edgeCenter
 
-        rot = Euler((0.0, 0.0, radians(axisAngle)), 'XYZ').to_matrix()
-        if plane == YZ:
-            rot = Euler((radians(axisAngle), 0.0, 0.0), 'XYZ').to_matrix()
-        if plane == XZ:
-            rot = Euler((0.0, radians(axisAngle), 0.0), 'XYZ').to_matrix()
+    #     rot = Euler((0.0, 0.0, radians(axisAngle)), 'XYZ').to_matrix()
+    #     if plane == YZ:
+    #         rot = Euler((radians(axisAngle), 0.0, 0.0), 'XYZ').to_matrix()
+    #     if plane == XZ:
+    #         rot = Euler((0.0, radians(axisAngle), 0.0), 'XYZ').to_matrix()
 
-        indexes = [v.index for v in vertices]
+    #     indexes = [v.index for v in vertices]
 
-        bmesh.ops.rotate(
-            bm,
-            cent=center,
-            matrix=rot,
-            verts=vertices,
-            space=bpy.context.edit_object.matrix_world
-        )
-        self.sel.refreshMesh(bm, mesh)
-        bm.verts.ensure_lookup_table()
-        rotatedVertices = [bm.verts[i] for i in indexes]
+    #     bmesh.ops.rotate(
+    #         bm,
+    #         cent=center,
+    #         matrix=rot,
+    #         verts=vertices,
+    #         space=bpy.context.edit_object.matrix_world
+    #     )
+    #     self.sel.refreshMesh(bm, mesh)
+    #     bm.verts.ensure_lookup_table()
+    #     rotatedVertices = [bm.verts[i] for i in indexes]
 
-        return rotatedVertices
+    #     return rotatedVertices
 
-    def deleteSpinVertices(self, bm, mesh, lastSpinVertIndices):
-        verticesForDeletion = []
-        bm.verts.ensure_lookup_table()
-        for i in lastSpinVertIndices:
-            vi = bm.verts[i]
-            vi.select = True
-            verticesForDeletion.append(vi)
+    # def deleteSpinVertices(self, bm, mesh, lastSpinVertIndices):
+    #     verticesForDeletion = []
+    #     bm.verts.ensure_lookup_table()
+    #     for i in lastSpinVertIndices:
+    #         vi = bm.verts[i]
+    #         vi.select = True
+    #         verticesForDeletion.append(vi)
 
-        bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
-        bmesh.update_edit_mesh(mesh, True)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.mode_set(mode='EDIT')
+    #     bmesh.ops.delete(bm, geom=verticesForDeletion, context=1)
+    #     bmesh.update_edit_mesh(mesh, True)
+    #     bpy.ops.object.mode_set(mode='OBJECT')
+    #     bpy.ops.object.mode_set(mode='EDIT')
 
     def getLastSpinVertIndices(self, steps, lastVertIndex):
         arcfirstVertexIndex = lastVertIndex - steps  # + 1
@@ -1649,31 +1659,39 @@ class EdgeRoundifier(bpy.types.Operator):
         self.r = edgeLength / (2 * sin(angle / 2))
         print('CalculateRadius: a = ' + str(self.a) + ' r = ' + str(self.r))
 
-    def getSpinCenterClosestToRefCenter(self, objLocation, roots):
-        root0Distance = (Vector(objLocation) - Vector(roots[0])).length
-        root1Distance = (Vector(objLocation) - Vector(roots[1])).length
+    # def getSpinCenterClosestToRefCenter(self, objLocation, roots):
+    #     root0Distance = (Vector(objLocation) - Vector(roots[0])).length
+    #     root1Distance = (Vector(objLocation) - Vector(roots[1])).length
 
-        chosenId = 0
-        rejectedId = 1
-        if (root0Distance > root1Distance):
-            chosenId = 1
-            rejectedId = 0
-        return roots[chosenId], roots[rejectedId]
+    #     chosenId = 0
+    #     rejectedId = 1
+    #     if (root0Distance > root1Distance):
+    #         chosenId = 1
+    #         rejectedId = 0
+    #     return roots[chosenId], roots[rejectedId]
 
-    def addMissingCoordinate(self, roots, startVertex, plane):
-        if roots != None:
-            a, b = roots[0]
-            c, d = roots[1]
-            if plane == XY:
-                roots[0] = Vector((a, b, startVertex[2]))
-                roots[1] = Vector((c, d, startVertex[2]))
-            if plane == YZ:
-                roots[0] = Vector((startVertex[0], a, b))
-                roots[1] = Vector((startVertex[0], c, d))
-            if plane == XZ:
-                roots[0] = Vector((a, startVertex[1], b))
-                roots[1] = Vector((c, startVertex[1], d))
-        return roots
+    # def addMissingCoordinate(self, roots, startVertex, plane):
+    #     if roots != None:
+    #         a, b = roots[0]
+    #         c, d = roots[1]
+    #         if plane == XY:
+    #             roots[0] = Vector((a, b, startVertex[2]))
+    #             roots[1] = Vector((c, d, startVertex[2]))
+    #         if plane == YZ:
+    #             roots[0] = Vector((startVertex[0], a, b))
+    #             roots[1] = Vector((startVertex[0], c, d))
+    #         if plane == XZ:
+    #             roots[0] = Vector((a, startVertex[1], b))
+    #             roots[1] = Vector((c, startVertex[1], d))
+    #     return roots
+
+    # def getSpinAxis(self, plane):
+    #     axis = (0, 0, 1)
+    #     if plane == YZ:
+    #         axis = (1, 0, 0)
+    #     if plane == XZ:
+    #         axis = (0, 1, 0)
+    #     return axis
 
     def selectEdgesAfterRoundifier(self, context, edges):
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1697,13 +1715,6 @@ class EdgeRoundifier(bpy.types.Operator):
         for edge in bm.edges:
             edge.select_set(False)
 
-    def getSpinAxis(self, plane):
-        axis = (0, 0, 1)
-        if plane == YZ:
-            axis = (1, 0, 0)
-        if plane == XZ:
-            axis = (0, 1, 0)
-        return axis
 
     @classmethod
     def poll(cls, context):
