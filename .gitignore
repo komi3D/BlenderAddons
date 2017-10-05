@@ -215,4 +215,5 @@ pip-log.txt
 .mr.developer.cfg
 
 # VSCode
-.vscode/*
+.vscode/**
+*/.vscode/**
