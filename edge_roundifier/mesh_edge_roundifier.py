@@ -695,7 +695,6 @@ class EdgeRoundifier(bpy.types.Operator):
         edgeVector = mat.transposed()[0]
         translation = self.offset2 * edgeVector
         
-        
         try:
             bmesh.ops.translate(
                 bm,
@@ -710,6 +709,27 @@ class EdgeRoundifier(bpy.types.Operator):
         offsetVertices = [bm.verts[i] for i in indexes]
         return offsetVertices
         # return arcVerts
+
+    def makeElliptic(self, bm, mesh, arcVertices):
+        if self.ellipticFactor != 0:  # if 0 then nothing has to be done
+            lastVert = len(arcVertices) - 1
+            if self.drawArcCenters:
+                lastVert = lastVert - 1  # center gets added as last vert of arc
+            v0co = arcVertices[0].co
+            v1co = arcVertices[lastVert].co
+
+            for vertex in arcVertices:  # range(len(res_list)):
+                # PKHg>INFO compute the base on the edge  of the height-vector
+                top = vertex.co  # res_list[nr].co
+                t = 0
+                if v1co - v0co != 0:
+                    t = (v1co - v0co).dot(top - v0co) / \
+                        (v1co - v0co).length ** 2
+                h_bottom = v0co + t * (v1co - v0co)
+                height = (h_bottom - top)
+                vertex.co = top + self.ellipticFactor * height
+
+        return arcVertices
 
     def calculateSelectionCenter(self, edges):
         selectionCenter = Vector((0, 0, 0))
@@ -892,6 +912,7 @@ class EdgeRoundifier(bpy.types.Operator):
                 arcVerts.append(el)
         arcVerts = self.offsetArcParallel(arcVerts,matrix,bm, mesh)
         arcVerts = self.offsetArcPerpendicular(arcVerts,matrix,bm, mesh)
+        arcVerts = self.makeElliptic(bm, mesh, arcVerts)
         #TODO Axis Rotate & connect
         self.connectEdges(originalEdge, edge, arcVerts, bm, mesh)
         
@@ -1279,27 +1300,6 @@ class EdgeRoundifier(bpy.types.Operator):
     #     bpy.ops.transform.translate(value=old_location, constraint_axis=(False, False, False), constraint_orientation='GLOBAL',
     #                                 mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
     #     bpy.ops.object.mode_set(mode='EDIT')
-
-    def makeElliptic(self, bm, mesh, arcVertices, parameters):
-        if parameters["ellipticFactor"] != 0:  # if 0 then nothing has to be done
-            lastVert = len(arcVertices) - 1
-            if parameters["drawArcCenters"]:
-                lastVert = lastVert - 1  # center gets added as last vert of arc
-            v0co = arcVertices[0].co
-            v1co = arcVertices[lastVert].co
-
-            for vertex in arcVertices:  # range(len(res_list)):
-                # PKHg>INFO compute the base on the edge  of the height-vector
-                top = vertex.co  # res_list[nr].co
-                t = 0
-                if v1co - v0co != 0:
-                    t = (v1co - v0co).dot(top - v0co) / \
-                        (v1co - v0co).length ** 2
-                h_bottom = v0co + t * (v1co - v0co)
-                height = (h_bottom - top)
-                vertex.co = top + parameters["ellipticFactor"] * height
-
-        return arcVertices
 
     # def arcPostprocessing(self, edge, parameters, bm, mesh, roundifyParams, spinnedVerts, edgeCenter):
     #     [chosenSpinCenter, otherSpinCenter, spinAxis, angle,
