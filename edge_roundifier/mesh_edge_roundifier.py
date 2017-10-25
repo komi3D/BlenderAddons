@@ -345,6 +345,10 @@ class EdgeRoundifier(bpy.types.Operator):
 
     connectArcWithEdge = bpy.props.BoolProperty(
         name='Arc - Edge', default=False)
+    bridgeEnabled = bpy.props.BoolProperty(
+        name='Enabled', default=False)
+    bridgeClosed = bpy.props.BoolProperty(
+        name='Closed loop', default=False)
     connectArcs = bpy.props.BoolProperty(name='Arcs', default=False)
     connectScaledAndBase = bpy.props.BoolProperty(
         name='Scaled - Base Edge', default=False)
@@ -484,10 +488,13 @@ class EdgeRoundifier(bpy.types.Operator):
         self.addTwoCheckboxesToUI(
             box, False, 'Options:', 'flip', 'invertAngle')
         self.addTwoCheckboxesToUI(box, False, '', 'bothSides', 'fullCircles')
-
+        
         box = layout.box()
         self.addTwoCheckboxesToUI(
             box, False, 'Remove:', 'removeEdges', 'removeScaledEdges')
+
+        box = layout.box()
+        self.addTwoCheckboxesToUI(box, False, 'Bridge', 'bridgeEnabled', 'bridgeClosed')
 
         box = layout.box()
         self.addTwoCheckboxesToUI(
@@ -566,7 +573,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
         if self.removeEdges:
             bmesh.ops.delete(bm, geom=edges, context=2)
-
+        if self.bridgeEnabled:
+            self.bridgeArcs(bm, mesh)
         bpy.ops.object.mode_set(mode='OBJECT')
         bm.to_mesh(mesh)
         bpy.ops.object.mode_set(mode='EDIT')
@@ -596,6 +604,8 @@ class EdgeRoundifier(bpy.types.Operator):
         self.connectScaledAndBase = False
         self.connectArcsFlip = False
         self.connectArcWithEdgeFlip = False
+        self.bridgeEnabled = False
+        self.bridgeClosed = False
 
         self.axisAngle = 0.0
         self.edgeAngle = 0.0
@@ -632,6 +642,12 @@ class EdgeRoundifier(bpy.types.Operator):
 
 
 ####################### NEW CODE ###################################
+    def bridgeArcs(self, bm, mesh):
+        selectedEdges = [ele for ele in bm.edges if ele.select]
+        # bmesh.ops.bridge_loops(bm, edges, use_pairs, use_cyclic, use_merge, merge_factor, twist_offset)
+        bmesh.ops.bridge_loops(bm, edges=selectedEdges,  use_cyclic=self.bridgeClosed)
+    
+    
     def getAxisRotationCenter(self, arcVerts):
         if self.rotateCenter == 'V1':
             return arcVerts['start'].co 
