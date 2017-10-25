@@ -324,6 +324,8 @@ class EdgeRoundifier(bpy.types.Operator):
 
     index = 0
 
+    arcCentersArr = []
+
     edgeScaleFactor = bpy.props.FloatProperty(
         name='', default=1.0, min=0.00001, max=100000.0, step=0.5, precision=5)
     r = bpy.props.FloatProperty(
@@ -337,7 +339,6 @@ class EdgeRoundifier(bpy.types.Operator):
     fullCircles = bpy.props.BoolProperty(name='Circles', default=False)
     bothSides = bpy.props.BoolProperty(name='Both sides', default=False)
 
-    drawArcCenters = bpy.props.BoolProperty(name='Centers', default=False)
     removeEdges = bpy.props.BoolProperty(name='Edges', default=False)
     removeScaledEdges = bpy.props.BoolProperty(
         name='Scaled edges', default=False)
@@ -483,7 +484,6 @@ class EdgeRoundifier(bpy.types.Operator):
         self.addTwoCheckboxesToUI(
             box, False, 'Options:', 'flip', 'invertAngle')
         self.addTwoCheckboxesToUI(box, False, '', 'bothSides', 'fullCircles')
-        self.addCheckboxToUI(box, False, '', 'drawArcCenters')
 
         box = layout.box()
         self.addTwoCheckboxesToUI(
@@ -588,7 +588,6 @@ class EdgeRoundifier(bpy.types.Operator):
         self.invertAngle = False
         self.fullCircles = False
         self.bothSides = False
-        self.drawArcCenters = False
         self.removeEdges = False
         self.removeScaledEdges = False
 
@@ -710,14 +709,12 @@ class EdgeRoundifier(bpy.types.Operator):
         return offsetVertices
         # return arcVerts
 
-    def makeElliptic(self, bm, mesh, arcVertices):
+    def makeElliptic(self, bm, mesh, arcVertices, edge):
         if self.ellipticFactor != 0:  # if 0 then nothing has to be done
-            lastVert = len(arcVertices) - 1
-            if self.drawArcCenters:
-                lastVert = lastVert - 1  # center gets added as last vert of arc
-            v0co = arcVertices[0].co
-            v1co = arcVertices[lastVert].co
-
+            lastVert = int(len(arcVertices)/2) - 1 if self.bothSides else len(arcVertices) - 1
+            
+            v0co = edge.verts[0].co
+            v1co = edge.verts[1].co
             for vertex in arcVertices:  # range(len(res_list)):
                 # PKHg>INFO compute the base on the edge  of the height-vector
                 top = vertex.co  # res_list[nr].co
@@ -866,8 +863,6 @@ class EdgeRoundifier(bpy.types.Operator):
         result = bmesh.ops.spin(bm, geom=[v0], cent=center, axis=axis,
                                 angle=radians(angle), steps=steps, use_duplicate=False)
         self.selectResultVerts(steps, bm, mesh)
-        if (self.drawArcCenters):
-            bm.verts.new(center)
 
     def selectResultVerts(self, steps, bm, mesh):
         vertsLength = len(bm.verts)
@@ -912,7 +907,7 @@ class EdgeRoundifier(bpy.types.Operator):
                 arcVerts.append(el)
         arcVerts = self.offsetArcParallel(arcVerts,matrix,bm, mesh)
         arcVerts = self.offsetArcPerpendicular(arcVerts,matrix,bm, mesh)
-        arcVerts = self.makeElliptic(bm, mesh, arcVerts)
+        arcVerts = self.makeElliptic(bm, mesh, arcVerts, edge)
         #TODO Axis Rotate & connect
         self.connectEdges(originalEdge, edge, arcVerts, bm, mesh)
         
