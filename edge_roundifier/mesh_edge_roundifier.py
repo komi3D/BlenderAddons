@@ -54,12 +54,6 @@ LINE_TOLERANCE = 0.0001
 debug = True
 
 
-def debugPrint(*text):
-    if debug:
-        for t in text:
-            print(text)
-
-
 ############# for debugging PKHG ################
 def debugPrintNew(debug, *text):
     if debug:
@@ -322,6 +316,9 @@ class EdgeRoundifier(bpy.types.Operator):
     calc = CalculationHelper()
     sel = SelectionHelper()
 
+    selectionCenter = None
+    selectionCenterNormal = None
+
     index = 0
 
     arcCentersArr = []
@@ -390,12 +387,13 @@ class EdgeRoundifier(bpy.types.Operator):
         default='Edge',
         description="Rotate center for spin axis rotate")
 
-    firstVertStrategyItems = [("V1", "V1", "First vertex of edge"),("V2", "V2", "Second vertex of edge"),
-                         ('Cursor', 'Cursor', "Closest to 3d cursor")]
+    firstVertStrategyItems = [('Nearest Cursor', 'Nearest Cursor', "Closest to 3d cursor"),
+        ('Farthest Cursor', 'Farthest Cursor', "Farthest from 3d cursor"),
+        ('Loop', 'Loop', "Used for closed edge loop selection")]
     firstVertStrategy = bpy.props.EnumProperty(
         items=firstVertStrategyItems,
         name='',
-        default='V1',
+        default='Nearest Cursor',
         description="Strategy for choosing first vertex")
 
     arcModeItems = [("FullEdgeArc", "Full", "Full"),
@@ -569,7 +567,7 @@ class EdgeRoundifier(bpy.types.Operator):
             self.sel.refreshMesh(bm, mesh)
             # self.selectEdgesAfterRoundifier(context, edges)
         else:
-            debugPrint("No edges selected!")
+            print("No edges selected!")
 
         if self.removeEdges:
             bmesh.ops.delete(bm, geom=edges, context=2)
@@ -625,6 +623,7 @@ class EdgeRoundifier(bpy.types.Operator):
     def roundifyEdges(self, edges, bm, mesh):
         arcs = []
         self.index = 0
+        self.selectionCenter = self.calculateSelectionCenter(edges)
         for e in edges:
             print('=======================================')
             matrix = self.makeMatrixFromEdge(e, bm)
@@ -695,7 +694,7 @@ class EdgeRoundifier(bpy.types.Operator):
                 verts=verts,
                 vec=translation)
         except ValueError:
-            print("[Edge Roundifier]: Perpendicular translate value error - multiple vertices in list - try unchecking 'Centers'")
+            print("[Edge Roundifier]: Perpendicular translate value error - multiple vertices in list")
         
         indexes = [v.index for v in verts]
         self.sel.refreshMesh(bm, mesh)
@@ -716,7 +715,7 @@ class EdgeRoundifier(bpy.types.Operator):
                 verts=verts,
                 vec=translation)
         except ValueError:
-            print("[Edge Roundifier]: Parallel translate value error - multiple vertices in list - try unchecking 'Centers'")
+            print("[Edge Roundifier]: Parallel translate value error - multiple vertices in list")
 
         indexes = [v.index for v in verts]
         self.sel.refreshMesh(bm, mesh)
@@ -800,15 +799,25 @@ class EdgeRoundifier(bpy.types.Operator):
         return bm.edges.new([bmv1, bmv2])
 
     def getFirstIndex(self, edge):
-        firstIndex = None
-        if self.firstVertStrategy == 'V1':
-            firstIndex = 0
-        elif self.firstVertStrategy == 'V2':
-            firstIndex = 1
-        elif self.firstVertStrategy == 'Cursor':
-            firstIndex = self.getVertIndexClosestToCursor(edge)
-        else:
-            firstIndex = 0
+        firstIndex = self.getVertIndexClosestToCursor(edge)
+        if self.firstVertStrategy == 'Farthest Cursor':
+            firstIndex = self.getOtherIndex(firstIndex)
+        elif self.firstVertStrategy == 'Loop':
+            firstIndex = self.getRadialIndex(firstIndex, edge)   
+        return firstIndex
+
+    def getRadialIndex(self, firstIndex, edge):
+        print('getRadial =======>')
+        if self.selectionCenterNormal == None:
+            self.selectionCenterNormal = self.calculateSelectionCenterNormal(firstIndex, edge)
+        print('self.selectionCenterNormal = ' + str(self.selectionCenterNormal))
+        testNormal = self.calculateSelectionCenterNormal(firstIndex, edge)
+        print('testNormal = ' + str(testNormal))
+        print('firstIndexOriginal = ' + str(firstIndex))
+        if (testNormal - self.selectionCenterNormal).length > self.threshold:
+            firstIndex = self.getOtherIndex(firstIndex)
+        print('firstIndexAfterNormalCompare = ' + str(firstIndex))
+        print('==========================')
         return firstIndex
 
     def getEdgeVertices(self, edge):
@@ -1015,6 +1024,15 @@ class EdgeRoundifier(bpy.types.Operator):
         self.sel.refreshMesh(bm, mesh)
 
 # === EDGE NORMALS ===
+    def calculateSelectionCenterNormal(self, firstIndex, edge):
+        otherIndex = self.getOtherIndex(firstIndex)
+        v0 = edge.verts[firstIndex].co
+        v1 = edge.verts[otherIndex].co
+        a = (v1 - v0).normalized()
+        s = (self.selectionCenter - v0).normalized()
+        normal = s.cross(a).normalized()
+        return normal
+
     def calculateEdgeNormalWithSelectionCenter(self, edge, n, selectionCenter):
         # v0 = edge.verts[0].co
         # v1 = edge.verts[1].co
@@ -1025,12 +1043,12 @@ class EdgeRoundifier(bpy.types.Operator):
         test = s.cross(a).normalized()
         normal = a.cross(n)
         check = normal.cross(a)
-        print('CHECK: ' + str(check), 'TEST:' + str(test))
+        # print('CHECK: ' + str(check), 'TEST:' + str(test))
 
         if (check - test).length > self.threshold:
-            print('RECALCULATE')
+            # print('RECALCULATE')
             n = -n
-            print('n=' + str(n))
+            # print('n=' + str(n))
             normal = a.cross(n)
         normal = -normal # this is to make arcs outside
         if self.flip:
@@ -1077,7 +1095,7 @@ class EdgeRoundifier(bpy.types.Operator):
         elif (self.planeEnum == 'AlongZ'):
             normal = self.getVector(Vector((0, 0, 1)))
 
-        print('Actual Normal = ' + str(normal))
+        # print('Actual Normal = ' + str(normal))
 
 # TEMPORARY NORMAL DRAWN 
         # v0, v1 = self.getEdgeVertices(edge)
@@ -1115,11 +1133,11 @@ class EdgeRoundifier(bpy.types.Operator):
     def getEdgeNormalView(self, edge):
         normal = self.getEdgeVector(edge)
         viewMatrix = self.getViewMatrix()
-        print('viewMatrix = ' + str(viewMatrix))
+        # print('viewMatrix = ' + str(viewMatrix))
         if viewMatrix != None:
             n = viewMatrix[2]
             normal = self.calculateEdgeNormal(edge, n)
-            print("getEdgeNormalView - Using View Normal")
+            # print("getEdgeNormalView - Using View Normal")
         return normal
 
     def getEdgeNormalBetween2Faces(self, edge, faces):
@@ -1128,7 +1146,7 @@ class EdgeRoundifier(bpy.types.Operator):
         normal = n1 + n2
         if self.flip:
             normal = -normal
-        print("getEdgeNormalBetween2Faces")
+        # print("getEdgeNormalBetween2Faces")
         return normal
 
     def calculateEdgeNormal(self, edge, n):
@@ -1144,7 +1162,7 @@ class EdgeRoundifier(bpy.types.Operator):
         faceCenter = face.calc_center_median()
         normal = self.calculateEdgeNormalWithSelectionCenter(
             edge, n, faceCenter)
-        print("getEdgeNormalFace - Using Face Normal")
+        # print("getEdgeNormalFace - Using Face Normal")
         return normal
 
     def getFaceNormal(self, face):
@@ -1195,10 +1213,10 @@ class EdgeRoundifier(bpy.types.Operator):
         elif axis == 'X':
             selectionCenter.x = edge.verts[0].co.x
 
-        print("getEdgeNormalForAxis - modified vec = " + str(vec))
+        # print("getEdgeNormalForAxis - modified vec = " + str(vec))
         normal = self.calculateEdgeNormalWithSelectionCenter(
             edge, vec, selectionCenter)
-        print("getEdgeNormalForAxis - normal = " + str(normal))
+        # print("getEdgeNormalForAxis - normal = " + str(normal))
         return normal
 
     def getVector(self, vec):
@@ -1262,13 +1280,11 @@ class EdgeRoundifier(bpy.types.Operator):
             halfAngle = asin(halfEdgeLength / self.r)
             angle = 2 * halfAngle  # in radians
             self.a = degrees(angle)  # in degrees
-        print('CalculateAngle: a = ' + str(self.a) + ' r = ' + str(self.r))
 
     def CalculateRadius(self, edgeLength):
         degAngle = self.a
         angle = radians(degAngle)
         self.r = edgeLength / (2 * sin(angle / 2))
-        print('CalculateRadius: a = ' + str(self.a) + ' r = ' + str(self.r))
 
     def selectEdgesAfterRoundifier(self, context, edges):
         bpy.ops.object.mode_set(mode='OBJECT')
